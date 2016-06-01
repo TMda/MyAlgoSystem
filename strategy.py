@@ -88,7 +88,7 @@ class MyLiveStrategy(Strategy):
             while True: #Starting the event Loop
                 try:
                     print('%s[MyLiveStrategy Super] Checking if Event Queue is Empty'%(now,))
-                    event = self.__events.get(False)
+                    event = self.__events.get()
                     print('%s[MyLiveStrategy Super] Removed element from event Queue'%(now,))
 
                 except queue.Empty:
