@@ -139,52 +139,52 @@ class MyIbBroker():
             print ('%s[IB LiveBroker __debugHandler]................................................'%(now,))
             print ('%s[IB LiveBroker __debugHandler] %s' %(now,msg))
             print ('%s[IB LiveBroker __debugHandler]................................................'%(now,))
-            print ('%s[IB LiveBroker __debugHandler] EXIT EXIT EXIT ============================'%(now,))
+           
 
         if msg.execution and msg.contract:#:=='execDetails':
             now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
-            print ('%s[IB LiveBroker __execDetailsHandler] *****************************'%(now,))
-            print ('%s[IB LiveBroker __execDetailsHandler] Position msg handler'%(now,))
-            print ('%s[IB LiveBroker __execDetailsHandler] Message received from Server:' % (now,))
-            print ('%s[IB LiveBroker __execDetailsHandler]................................................'%(now,))
-            print ('%s[IB LiveBroker __execDetailsHandler] %s' %(now,msg))
-            print ('%s[IB LiveBroker __execDetailsHandler]................................................'%(now,))
-            print ('%s[IBLiveBroker execDetailsHandler]CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC')
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract contract' %(now,)) 
+            print ('%s[IB LiveBroker __debugHandler __execDetailsHandler] *****************************'%(now,))
+            print ('%s[IB LiveBroker __debugHandler __execDetailsHandler] Position msg handler'%(now,))
+            print ('%s[IB LiveBroker __debugHandler __execDetailsHandler] Message received from Server:' % (now,))
+            print ('%s[IB LiveBroker __debugHandler __execDetailsHandler]................................................'%(now,))
+            print ('%s[IB LiveBroker __debugHandler __execDetailsHandler] %s' %(now,msg))
+            print ('%s[IB LiveBroker __debugHandler __execDetailsHandler]................................................'%(now,))
+            print ('%s[IBLiveBroker __debugHandler execDetailsHandler]CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC')
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract contract' %(now,)) 
             ibContract=msg.contract
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_symbol: %s' %(now,ibContract.m_symbol)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_secType: %s' %(now,ibContract.m_secType)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_currency: %s' %(now,ibContract.m_currency)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_exchange: %s' %(now,ibContract.m_exchange)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_multiplier: %s' %(now,ibContract.m_multiplier)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_expiry: %s' %(now,ibContract.m_expiry)) 
-            print ('%s[IBLiveBroker __execDetailsHandler]ibContract.m_strike %s' %(now,ibContract.m_strike))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract.m_symbol: %s' %(now,ibContract.m_symbol)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract.m_secType: %s' %(now,ibContract.m_secType)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract.m_currency: %s' %(now,ibContract.m_currency)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract.m_exchange: %s' %(now,ibContract.m_exchange)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract.m_multiplier: %s' %(now,ibContract.m_multiplier)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibContract.m_expiry: %s' %(now,ibContract.m_expiry)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]ibContract.m_strike %s' %(now,ibContract.m_strike))
             ibExecution=msg.execution
-            print ('%s[IBLiveBroker __execDetailsHandler]'%(now))
-            print ('%s[IBLiveBroker __execDetailsHandler] EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE'%(now))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution ' %(now)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_orderId: %s' %(now,ibExecution.m_orderId)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_execId  : %s' %(now,ibExecution.m_execId  )) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_price : %s' %(now,ibExecution.m_price )) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_shares : %s' %(now,ibExecution.m_shares)) 
-            print ('%s[IBLiveBroker __execDetailsHandler]  ibOrder.m_auxPrice: %s' %(now,ibOrder.m_auxPrice)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_side  %s' %(now,ibExecution.m_side))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_time  %s' %(now,ibExecution.m_time ))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_exchange  %s' %(now,ibExecution.m_exchange  ))
-            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_totalQuantity   %s' %(now,ibOrder.m_totalQuantity ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]'%(now))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE'%(now))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution ' %(now)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibOrder.m_orderId: %s' %(now,ibExecution.m_orderId)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution.m_execId  : %s' %(now,ibExecution.m_execId  )) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution.m_price : %s' %(now,ibExecution.m_price )) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution.m_shares : %s' %(now,ibExecution.m_shares)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]  ibOrder.m_auxPrice: %s' %(now,ibOrder.m_auxPrice)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution.m_side  %s' %(now,ibExecution.m_side))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution.m_time  %s' %(now,ibExecution.m_time ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibExecution.m_exchange  %s' %(now,ibExecution.m_exchange  ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]ibOrder.m_totalQuantity   %s' %(now,ibOrder.m_totalQuantity ))
              
             ibOder = self.__activeOrders.get(msg.orderId)
-            print ('%s[IBLiveBroker __execDetailsHandler] OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'%(now))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOder ' %(now)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_orderId: %s' %(now,ibOrder.m_orderId)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_clientId  : %s' %(now,ibOrder.m_clientId  )) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_action : %s' %(now,ibOrder.m_action )) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_lmtPrice : %s' %(now,ibOrder.m_lmtPrice )) 
-            print ('%s[IBLiveBroker __execDetailsHandler]  ibOrder.m_auxPrice: %s' %(now,ibOrder.m_auxPrice)) 
-            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_tif  %s' %(now,ibOrder.m_tif ))
-            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_transmit  %s' %(now,ibOrder.m_transmit ))
-            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_orderType   %s' %(now,ibOrder.m_orderType  ))
-            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_totalQuantity   %s' %(now,ibOrder.m_totalQuantity ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'%(now))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibOder ' %(now)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibOrder.m_orderId: %s' %(now,ibOrder.m_orderId)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibOrder.m_clientId  : %s' %(now,ibOrder.m_clientId  )) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibOrder.m_action : %s' %(now,ibOrder.m_action )) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler] ibOrder.m_lmtPrice : %s' %(now,ibOrder.m_lmtPrice )) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]  ibOrder.m_auxPrice: %s' %(now,ibOrder.m_auxPrice)) 
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]ibOrder.m_tif  %s' %(now,ibOrder.m_tif ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]ibOrder.m_transmit  %s' %(now,ibOrder.m_transmit ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]ibOrder.m_orderType   %s' %(now,ibOrder.m_orderType  ))
+            print ('%s[IBLiveBroker __debugHandler __execDetailsHandler]ibOrder.m_totalQuantity   %s' %(now,ibOrder.m_totalQuantity ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_allOrNone  %s' %(now,ibOrder.m_allOrNone ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_tif   %s' %(now,ibOrder.m_tif ))
  
@@ -193,16 +193,22 @@ class MyIbBroker():
         if msg.keys=='error':
             if msg.errorCode==103:
                 print ('%s[IB LiveBroker __debugHandler] error id=0, errorCode=103, errorMsg=Duplicate order id'%(now,))
-                print ('%s[IB LiveBroker __debugHandler] EXIT EXIT EXIT ============================'%(now,))
+                #print ('%s[IB LiveBroker __debugHandler] EXIT EXIT EXIT ============================'%(now,))
+        if self.__debug:        
+             print ('%s[IB LiveBroker __debugHandler] EXIT EXIT EXIT ============================'%(now,))
     def __execDetailsHandler(self,msg):
         ibContract=msg.contract
         ibExecution=msg.execution
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if self.__debug:
+                print ('%s[IB LiveBroker __execDetailsHandler] ===START============================'%(now,))
+
         #Check duplicate execution order
         if ibExecution.m_execId in self.__executionHistory['ibExecution.m_execId']:
             if self.__debug:
-                print ('%s[IB LiveBroker __execDetailsHandler] Duplicate execution order'%(now,))
+                print ('%s[IB LiveBroker __execDetailsHandler] This is a Duplicate execution order'%(now,))
                 self.__printDebug()
+            
             return
         #building execution row to add in executionHistory
         rxDict={
@@ -234,20 +240,20 @@ class MyIbBroker():
             print ('%s[IB LiveBroker __execDetailsHandler]................................................'%(now,))
             print ('%s[IB LiveBroker __execDetailsHandler] %s' %(now,msg))
             print ('%s[IB LiveBroker __execDetailsHandler]................................................'%(now,))
-            print ('%s[IBLiveBroker execDetailsHandler]CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'%(now))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract contract' %(now)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_symbol: %s' %(now,ibContract.m_symbol)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_secType: %s' %(now,ibContract.m_secType)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_currency: %s' %(now,ibContract.m_currency)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_exchange: %s' %(now,ibContract.m_exchange)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_multiplier: %s' %(now,ibContract.m_multiplier)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_expiry: %s' %(now,ibContract.m_expiry)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_strike %s' %(now,ibContract.m_strike))
+            print ('%s[IBLiveBroker  __execDetailsHandler]CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'%(now))
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract contract details:' %(now)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_symbol: %s' %(now,ibContract.m_symbol)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_secType: %s' %(now,ibContract.m_secType)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_currency: %s' %(now,ibContract.m_currency)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_exchange: %s' %(now,ibContract.m_exchange)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_multiplier: %s' %(now,ibContract.m_multiplier)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_expiry: %s' %(now,ibContract.m_expiry)) 
+            print ('%s[IBLiveBroker  __execDetailsHandler] ibContract.m_strike %s' %(now,ibContract.m_strike))
             print ('%s[IBLiveBroker __execDetailsHandler] ibContract.m_right %s' %(now,ibContract.m_right))
             
             print ('%s[IBLiveBroker __execDetailsHandler]'%(now))
             print ('%s[IBLiveBroker __execDetailsHandler] EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE'%(now))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution ' %(now)) 
+            print ('%s[IBLiveBroker __execDetailsHandler] ibExecution details: ' %(now)) 
             print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_orderId: %s' %(now,ibExecution.m_orderId))#int m_orderId The order id. Note:  TWS orders have a fixed order id of "0."
             print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_execId  : %s' %(now,ibExecution.m_execId  ))#String m_execId Unique order execution id.
             print ('%s[IBLiveBroker __execDetailsHandler] ibExecution.m_acctNumber  : %s' %(now,ibExecution.m_acctNumber  )) # String m_acctNumber the customer account number.
@@ -269,32 +275,32 @@ class MyIbBroker():
         assert(ibOderA,Order),'[IB LiveBroker __execDetailsHandler] Error Order not in active Order Table'
 
         if self.__debug:
-            print ('%s[IBLiveBroker __execDetailsHandler] Retrieving Order from Active Order Table'%(now))
+            print ('%s[IBLiveBroker __execDetailsHandler]Retrieving Order from Active Order Table'%(now))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_totalQuantity   %s' %(now,ibOrderA.m_totalQuantity ))
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOder ' %()) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_orderId: %s' %(now,ibOrderA.m_orderId)) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_clientId  : %s' %(now,ibOrderA.m_clientId  )) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_action : %s' %(now,ibOrderA.m_action )) 
-            print ('%s[IBLiveBroker __execDetailsHandler] ibOrder.m_lmtPrice : %s' %(now,ibOrderA.m_lmtPrice )) 
-            print ('%s[IBLiveBroker __execDetailsHandler]  ibOrder.m_auxPrice: %s' %( ibOrderA.m_auxPrice)) 
+            print ('%s[IBLiveBroker __execDetailsHandler]ibOder ' %()) 
+            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_orderId: %s' %(now,ibOrderA.m_orderId)) 
+            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_clientId  : %s' %(now,ibOrderA.m_clientId  )) 
+            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_action : %s' %(now,ibOrderA.m_action )) 
+            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_lmtPrice : %s' %(now,ibOrderA.m_lmtPrice )) 
+            print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_auxPrice: %s' %( ibOrderA.m_auxPrice)) 
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_tif  %s' %(now,ibOrderA.m_tif ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_transmit  %s' %(now,ibOrderA.m_transmit ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_orderType   %s' %(now,ibOrderA.m_orderType  ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_totalQuantity   %s' %(now,ibOrderA.m_totalQuantity ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_allOrNone  %s' %(now,ibOrderA.m_allOrNone ))
             print ('%s[IBLiveBroker __execDetailsHandler]ibOrder.m_tif   %s' %(now,ibOrderA.m_tif ))
-            print ('%s[IBLiveBroker __execDetailsHandler] Consistency Check: order and contract from IB same as the one recorded in Active Order Table')
+            print ('%s[IBLiveBroker __execDetailsHandler]Consistency Check OK: order and contract from IB same as the one recorded in Active Order Table')
 
 
         #Iborder consistency check between value from execution and Active Order table
         if ibOrderA.m_orderId!=ibExecution.m_orderId :
             if self.__debug:
-                print('%s[IBLiveBroker __execDetailsHandler] Consistency Check Order NO OK')
-                raise('%s[IBLiveBroker __execDetailsHandler] Consistency Check Oredr NO OK')
+                print('%s[IBLiveBroker __execDetailsHandler] Order Consistency Check Order NO OK')
+                raise('%s[IBLiveBroker __execDetailsHandler] Order Consistency Check Oredr NO OK')
             
         else:
             if self.__debug:
-                print('%s[IBLiveBroker __execDetailsHandler] Consistency Check ORDER OK')
+                print('%s[IBLiveBroker __execDetailsHandler] Order Consistency Check ORDER OK')
         
             
         if ibContract.m_symbol==ibContractA.m_symbol and \
@@ -306,7 +312,7 @@ class MyIbBroker():
             ibContract.m_strike==ibContractA.m_strike and\
             ibContract.m_right==ibContractA.m_right:
             if self.__debug:
-                print('%s[IBLiveBroker __execDetailsHandler] Consistency Check OK'%(now))
+                print('%s[IBLiveBroker __execDetailsHandler] contract Consistency Check OK'%(now))
         else:
             if self.__debug:
                 print ('%s[IBLiveBroker __execDetailsHandler] Consistency Check NO OK'%(now))
@@ -322,7 +328,7 @@ class MyIbBroker():
                       
            
                 self.__printDebug()
-            raise('[IB LiveBroker __execDetailsHandler] Consistency Check NO OK')
+            raise('[IB LiveBroker __execDetailsHandler] Contract Consistency Check NO OK')
 
         if self.__debug:
             print ('%s[IBLiveBroker __execDetailsHandler] Check if order Executed Completely or Partially')
