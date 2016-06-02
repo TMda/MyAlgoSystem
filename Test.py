@@ -42,6 +42,12 @@ class thomas(MyLiveStrategy):
         priceBar=bar.getClose()
 
         print('%s[Thomas onBars]********************************'%(now))
+        print('%s[Thomas onBars] Removed element from event Queue'%(now,))
+        print('%s[Thomas onBars] Event Open: %s'%(now,bar.getOpen()))
+        print('%s[Thomas onBars] Event Close: %s'%(now,bar.getClose()))
+        print('%s[Thomas onBars] Event High: %s'%(now,bar.getHigh()))
+        print('%s[Thomas onBars] Event Low: %s'%(now,bar.getLow()))
+        print('%s[Thomas onBars] Event Volume: %s'%(now,bar.getVolume()))        
         #bar=self._events.get().bar
         if self.__count==0:
             self.price=np.array(priceBar,dtype=float)
@@ -198,8 +204,8 @@ bac=makeStkContrcat('BAC')
 #bac.m_exchange  = 'SMART'
 #bac.m_currency  = 'USD'
 eur=makeForexContract('EUR') 
-bacFeed         =   LiveFeed(contract=bac,frequency=60,debug=True)
-IbBroker        =   MyIbBroker(debug=True)
+bacFeed         =   LiveFeed(contract=bac,frequency=60,debug=False)
+IbBroker        =   MyIbBroker(debug=False)
 thomas  =   MyLiveStrategy(LiveBarFeed=bacFeed,broker=IbBroker,debug=True)
 
 thomas.run()

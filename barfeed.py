@@ -465,32 +465,52 @@ class LiveFeed(barfeed.BaseBarFeed):
     QUEUE_TIMEOUT = 0.01
 
 
-    def __init__(self,contract,frequency=60,eventQueue=None,identifiers=None, 
+    def __init__(self,contract,frequency=60,eventQueue=None,
+                 identifiers=None, 
                 host="localhost",port=7496,       
                 warmupBars = 0, debug=False,fileOutput=None):
+        # Contract is either a ib contract or a list of ib contract 
         #barfeed.BaseBarFeed.__init__(self, frequency, maxLen)
         #if not isinstance(identifiers, list):
         #    raise Exception("identifiers must be a list")
+        
+        #Check if a queue is provided if not create one
+        #Queue are used to communicate with outside program that 
+        #share the same queue
         if eventQueue !=None:
             self.__queue = eventQueue
         else:
             self.__queue = queue.Queue()
+        
+        #Create a disctionary for bar
         self.__currentBar = {}
+        
+        #Check if a contract has been provided or a list and 
+        #adapt accordingly because the following code expect a list
+        #of contract
         if isinstance(contract,list):
             self.__contracts=contract
         elif isinstance(contract,Contract):
             self.__contracts=[contract]
         else:
             raise('Contract should be either a contract or a list of contract')
+
+        #This version is kept for historical raison
         self.__instruments = self.buildInstrumentList()# I use contract that is for historical compatibility
+
         #keep track of latest timestamp on any bars for requesting next set
         self.__lastBarStamp = 0
         self.__currentBarStamp = 0
-             
-        self.__frequency = frequency
-        self.__timer = None
-        self.__fileOutput=fileOutput
+        
+      
 
+        self.__timer = None
+        
+        # File where historical values are outputed
+        self.__fileOutput=fileOutput
+        
+        # BAr frequency       
+        self.__frequency = frequency
         '''
         valid frequencies are (and we are really limited by IB here but it's a good range). If the values don't suit then look at taking a higher 
         frequency and using http://gbeced.github.io/pyalgotrade/docs/v0.16/html/strategy.html#pyalgotrade.strategy.BaseStrategy.resampleBarFeed to get the desired frequency
@@ -517,7 +537,7 @@ class LiveFeed(barfeed.BaseBarFeed):
             self.__debug = True
 
  
-        
+        #Ib connection parameters
         self.__ib = ibConnection(host=host,port=port,clientId=random.randint(1,10000))
         self.__ib.register(self.__historicalBarsHandler, message.historicalData)
         self.__ib.register(self.__errorHandler, message.error)
@@ -580,10 +600,11 @@ class LiveFeed(barfeed.BaseBarFeed):
 
         #Note date/time is local time not market time
         #Also for some weird reason IB is sending bars with finished in the date so why not just ignore
+        now=dt.datetime.now().strftime('%Y%m%d %H:%M:%S')
         if self.__debug:
-            now=dt.datetime.now().strftime('%Y%m%d %H:%M:%S')
+            
             print ('%s[LiveFeed __build_bar] **********************************' %(now))
-            print('%s[LiveFeed __build_bar] starting try catch sentence'%(now))
+            print ('%s[LiveFeed __build_bar] starting try catch sentence'%(now))
         ts = 0
 
         try:
@@ -812,8 +833,14 @@ class LiveFeed(barfeed.BaseBarFeed):
                 print('%s [LiveFeed __historicalBarsHandler] instrument: %s ' % (dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),instrument))
 
         stockBar = self.__build_bar(msg, instrument,self.__frequency,self.__contracts[msg.reqId].m_currency)
+        if stockBar==None:
+            return
+            
+        print("!!!!@@@@@@ %s @@@@@@@" %(stockBar))
+        
         if self.__debug:
-              print ('%s[LiveFeed  __historicalBarsHandler] instrument: %s, stockbar Closing price: %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),instrument,stockBar.getClose()))
+              print ('%s[LiveFeed  __historicalBarsHandler]>>><<< instrument: %s, stockbar Closing price: %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),instrument,stockBar.getClose()))
+              print ('%s[LiveFeed  __historicalBarsHandler]>>><<< stockbar : %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),stockBar))
 
         if self.__inWarmup:
             if self.__debug:
@@ -881,36 +908,61 @@ class LiveFeed(barfeed.BaseBarFeed):
 
                 #no idea what to do if we missed the end message on the warmup - will never get past here
         else:
+            #print("@@@@@@ NO WARMUP @@@@@@@")
+            print ('%s[@@@@@] Message received from Server: %s' % (dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),msg))
+            Event=MarketEvent(stockBar)
+            print ("@@@@@  %s"%(Event.type))
+            print ("@@@@@  %s"%(Event.bar.getDateTime()))
+            print ("@@@@@  %s"%(Event.bar.getOpen()))
+            print ("@@@@@  %s"%(Event.bar.getClose()))
+            print ("@@@@@  %s"%(Event.bar.getHigh()))
+            print ("@@@@@  %s"%(Event.bar.getLow()))
+            print ("@@@@@  %s"%(Event.bar.getVolume()))
+
             if self.__debug:
                   print ('%s[LiveFeed  __historicalBarsHandler] live bar code no Warmup' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
-
-            #normal operating mode 
-            #below is the live bar code - ignore bars with a date past the last bar stamp
-            if self.__debug:
                   print ('%s[LiveFeed  __historicalBarsHandler] ignore bars with a date past the last bar stamp' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
+             
+                  print ('%s[LiveFeed  __historicalBarsHandler] @int(msg.date): %s ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),int(msg.date)))
+                  print ('%s[LiveFeed  __historicalBarsHandler] @self.__lastBarStamp: %s ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.__lastBarStamp))
+
+                #normal operating mode 
+                #below is the live bar code - ignore bars with a date past the last bar stamp
 
             if stockBar != None and int(msg.date) > self.__lastBarStamp:
+                print("@@@@@@stockBar != None and int(msg.date) > self.__lastBarStamp correct")
+ 
                 self.__currentBar[self.__instruments[msg.reqId]] = stockBar
-                self.__queue.put(MarketEvent(barEvent))
+                self.__queue.put(Event)
+                self.__lastBarStamp = int(msg.date) 
+                print ("@@@@@ BAR PUT ON THE QUEUE")
                 if self.__debug:
                     print('%s[LiveFeed  __historicalBarsHandler] BAR put in event queue ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
                     print ('%s[LiveFeed  __historicalBarsHandler] setting current bar to stockbar' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
                     print ('%s[LiveFeed  __historicalBarsHandler] self.__currentBar: %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.__currentBar))
-       
+            else:
+                  print("@@@@@stockBar != None and int(msg.date) > self.__lastBarStamp not correct")
+                  print ("@@@@@ BAR NOT PUT ON THE QUEUE")
+                  print ('%s[LiveFeed  __historicalBarsHandler] int(msg.date): %s ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),int(msg.date)))
+                  print ('%s[LiveFeed  __historicalBarsHandler] self.__lastBarStamp: %s ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.__lastBarStamp))
+                
             if self.__debug:
                 print ('%s[LiveFeed  __historicalBarsHandler] stockbar Close: %s, Open: %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),stockBar.getClose(),stockBar.getOpen()))
                 print ('%s[LiveFeed  __historicalBarsHandler] self.__currentBar: %s, len:' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.__currentBar,len(self.__currentBar)))
                 print ('%s[LiveFeed  __historicalBarsHandler] self.__instruments: %s, len: ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.__instruments,len(self.__instruments)))
-                print ('%s[LiveFeed  __historicalBarsHandler] STARTING PUT STOCKBAR IN EVENT QUEUE' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),))
             
-            print ('%s[LiveFeed  __historicalBarsHandler] self.__instruments: %s, len: ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.__instruments,len(self.__instruments)))
-            print ('%s[LiveFeed  __historicalBarsHandler] IF GOT ALL BAR STARTING PUT STOCKBAR IN EVENT QUEUE' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),))
             
             #got all bars?
+            print ("@@@@@ len(self.__currentBar): %s"%(len(self.__currentBar)))
+            print ("@@@@@ len(self.__instruments) %s"%(len(self.__instruments)))
+           
+            """
             if len(self.__currentBar) == len(self.__instruments):
+                print ("@@@@@ len(self.__currentBar) == len(self.__instruments)")
                 bars = bar.Bars(self.__currentBar)
                 barEvent=self.__currentBar
                 self.__queue.put(MarketEvent(barEvent))
+                print ("@@@@@ BAR PUT ON THE QUEUE")
                 self.__currentBar = {}
                 if self.__debug:
                     print('%s[LiveFeed  __historicalBarsHandler] BAR put in event queue ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
@@ -922,7 +974,7 @@ class LiveFeed(barfeed.BaseBarFeed):
             else:
                 if self.__debug:
                     print('%s[LiveFeed  __historicalBarsHandler] BAR NOT PUT in event queue ' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
-
+            """
             if self.__debug:
                 print('** [LiveFeed  __historicalBarsHandler] ===EXIT==============EXIT')
     # observer.Subject interface

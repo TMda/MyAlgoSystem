@@ -368,6 +368,7 @@ class MyIbBroker():
         #adding the new execution in execution history    
         self.__executionHistory.append(rxDict,ignore_index=True)
     def __accountHandler(self,msg):
+        import datetime as dat
         #FYI this is not necessarily USD - probably AUD for me as it's the base currency so if you're buying international stocks need to keep this in mind
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         #if self.__debug:
@@ -387,6 +388,7 @@ class MyIbBroker():
     def __portfolioHandler(self,msg):
         #contract=<ib.ext.Contract.Contract object at 0x00000000084E3278>, position=-5, marketPrice=1.11680995, marketValue=-5.58, 
         #averageCost=0.91886, unrealizedPNL=-0.99, realizedPNL=0.0, accountName=DU213041
+        import datetime as dat
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         ibContract=msg.contract
         portDict={
