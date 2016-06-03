@@ -23,11 +23,12 @@ class MarketEvent(Event):
     corresponding bars.
     """
 
-    def __init__(self,bar):
+    def __init__(self,bar,contract=None):
         """
         Initialises the MarketEvent.
         """
         self.type = 'MARKET'
+        self.contract=contract
         self.bar=bar
 
 class PortfolioEvent(Event):

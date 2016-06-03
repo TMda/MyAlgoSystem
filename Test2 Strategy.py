@@ -18,7 +18,7 @@ import pandas as pd
 import statsmodels.api as sm
 from strategy import Strategy
 from event import SignalEvent
-
+from LiveExecutionContainer import LiveExecutionContainer
 import ib.ext
 from ib.ext import Contract
 #from MyAlgoSystem.bar import LiveFeed
@@ -31,10 +31,45 @@ from numpy import append
 import time
 
 ###########
-bacFeed         =   LiveFeed(contract=bac,frequency=60,debug=True)
-IbBroker        =   MyIbBroker(debug=True)
+def makeForexContract(m_symbol,ContractMonth,m_secType="FUT",m_currency="USD",
+                      m_exchange="GLOBEX"):
+    from ib.ext.Contract import Contract
+    contract   =  Contract()
+    contract.m_symbol   = m_symbol
+    contract.m_secType  = m_secType
+    contract.m_currency = m_currency
+    contract.m_exchange = m_exchange
+    contract.m_lastTradeDateOrContractMonth = ContractMonth
+    return contract
 
-class IntradayOLSMRStrategy(Strategy2):
+def makeStkContrcat(m_symbol,m_secType = 'STK',m_exchange = 'SMART',m_currency = 'USD'):
+    from ib.ext.Contract import Contract
+   
+    newContract = Contract()
+    newContract.m_symbol = m_symbol
+    newContract.m_secType = m_secType
+    newContract.m_exchange = m_exchange
+    newContract.m_currency = m_currency
+    return newContract
+
+def makeForexContract(m_symbol,m_secType = 'CASH',
+                      m_exchange = 'IDEALPRO',
+                      m_currency = 'USD'):
+        
+        
+        
+        
+    from ib.ext.Contract import Contract
+    newContract = Contract()
+    newContract.m_symbol = m_symbol #contract.symbol("EUR");
+    newContract.m_secType = m_secType #contract.secType("CASH");
+    newContract.m_exchange = m_exchange #contract.exchange("IDEALPRO");
+    newContract.m_currency = m_currency #contract.currency("GBP");
+    return newContract
+
+
+
+class IntradayOLSMRStrategy():
     """
     Uses ordinary least squares (OLS) to perform a rolling linear
     regression to determine the hedge ratio between a pair of equities.
@@ -46,8 +81,7 @@ class IntradayOLSMRStrategy(Strategy2):
     """
     
     def __init__(
-        self, bacFeed, events, ols_window=100, 
-        zscore_low=0.5, zscore_high=3.0
+        self, Ibroker ,contract_list
     ):
         """
         Initialises the stat arb strategy.
@@ -56,115 +90,72 @@ class IntradayOLSMRStrategy(Strategy2):
         bars - The DataHandler object that provides bar information
         events - The Event Queue object.
         """
-        self.bars = bars
-        self.symbol_list = self.bars.symbol_list
-        self.events = events
-        self.ols_window = ols_window
-        self.zscore_low = zscore_low
-        self.zscore_high = zscore_high
+        self.barBAC = []
+        self.barAAPL= []
+        self.x=np.array(1)
+        self.y=np.array(1)
+        self.i=0
+        self.mvx=[]
+        self.mvy=[]
+        self.long=False
+        self.short=False
+        self.IbBroker=Ibroker
+        self.contract_list=contract_list
 
-        self.pair = ('AREX', 'WLL')
-        self.datetime = datetime.datetime.utcnow()
-
-        self.long_market = False
-        self.short_market = False
-
-    def calculate_xy_signals(self, zscore_last):
-        """
-        Calculates the actual x, y signal pairings
-        to be sent to the signal generator.
-
-        Parameters
-        zscore_last - The current zscore to test against
-        """
-        y_signal = None
-        x_signal = None
-        p0 = self.pair[0]
-        p1 = self.pair[1]
-        dt = self.datetime
-        hr = abs(self.hedge_ratio)
-
-        # If we're long the market and below the 
-        # negative of the high zscore threshold
-        if zscore_last <= -self.zscore_high and not self.long_market:
-            self.long_market = True
-            y_signal = SignalEvent(1, p0, dt, 'LONG', 1.0)
-            x_signal = SignalEvent(1, p1, dt, 'SHORT', hr)
-
-        # If we're long the market and between the
-        # absolute value of the low zscore threshold
-        if abs(zscore_last) <= self.zscore_low and self.long_market:
-            self.long_market = False
-            y_signal = SignalEvent(1, p0, dt, 'EXIT', 1.0)
-            x_signal = SignalEvent(1, p1, dt, 'EXIT', 1.0)
-
-        # If we're short the market and above  
-        # the high zscore threshold
-        if zscore_last >= self.zscore_high and not self.short_market:
-            self.short_market = True
-            y_signal = SignalEvent(1, p0, dt, 'SHORT', 1.0)
-            x_signal = SignalEvent(1, p1, dt, 'LONG', hr)
-
-        # If we're short the market and between the
-        # absolute value of the low zscore threshold
-        if abs(zscore_last) <= self.zscore_low and self.short_market:
-            self.short_market = False
-            y_signal = SignalEvent(1, p0, dt, 'EXIT', 1.0)
-            x_signal = SignalEvent(1, p1, dt, 'EXIT', 1.0)
-
-        return y_signal, x_signal
-
-    def calculate_signals_for_pairs(self):
-        """
-        Generates a new set of signals based on the mean reversion
-        strategy.
-
-        Calculates the hedge ratio between the pair of tickers. 
-        We use OLS for this, althought we should ideall use CADF.
-        """
-        # Obtain the latest window of values for each 
-        # component of the pair of tickers
-        y = self.bars.get_latest_bars_values(
-            self.pair[0], "close", N=self.ols_window
-        )
-        x = self.bars.get_latest_bars_values(
-            self.pair[1], "close", N=self.ols_window
-        )
-
-        if y is not None and x is not None:
-            # Check that all window periods are available
-            if len(y) >= self.ols_window and len(x) >= self.ols_window:
-                # Calculate the current hedge ratio using  OLS
-                self.hedge_ratio = sm.OLS(y, x).fit().params[0]
-
-                # Calculate the current z-score of the residuals
-                spread = y - self.hedge_ratio * x
-                zscore_last = ((spread - spread.mean())/spread.std())[-1]
-
-                # Calculate signals and add to events queue
-                y_signal, x_signal = self.calculate_xy_signals(zscore_last)
-                if y_signal is not None and x_signal is not None:
-                    self.events.put(y_signal)
-                    self.events.put(x_signal)
-
-    def calculate_signals(self, event):
+    def onBar(self, bar):
         """
         Calculate the SignalEvents based on market data.
         """
-        if event.type == 'MARKET':
-            self.calculate_signals_for_pairs()
+        print('bar Got into the Strategy')
+        #print("bar: %s" %(bar))
+
+        if bar['contract'].m_symbol=='AAPL':
+            self.barBAC.append(bar)
+            self.x=np.append(self.x,self.barBAC[-1]['Close'])
+        elif bar['contract'].m_symbol=='BAC':
+            self.barAAPL.append(bar)
+            self.y=np.append(self.y,self.barAAPL[-1]['Close'])
+
+        else:
+            return
+        #print(self.x)
+        #print(self.y)
+        self.i +=1
+        self.calculate_signals_for_pairs(bar)
+        
+    def calculate_signals_for_pairs(self, bar):
+        print('STRATEGY - i: %s' %(self.i))
+
+        if self.i <5:
+            print('EXIST i <5: %s' %(self.i))
+            return
+        self.mvx=pd.rolling_mean(self.x,5)
+        if self.long==False and self.short==False:
+            print('Mean > price Buying 10 share' %())
+            self.IbBroker.createMarketOrder('BUY',self.contract_list[0],10)
+            self.long=True
+        if self.long:
+            print('Mean > price Buying 10 share' %())
+            self.IbBroker.createMarketOrder('SELL',self.contract_list[0],10)
+            self.long=True
+            
+            
+        
 
 
 if __name__ == "__main__":
     csv_dir = '/path/to/your/csv/file'  # CHANGE THIS!
-    symbol_list = ['AREX', 'WLL']
-    initial_capital = 100000.0
-    heartbeat = 0.0
-    start_date = datetime.datetime(2007, 11, 8, 10, 41, 0)
-
-    backtest = Backtest(
-        csv_dir, symbol_list, initial_capital, heartbeat, 
-        start_date, HistoricCSVDataHandlerHFT, SimulatedExecutionHandler, 
-        PortfolioHFT, IntradayOLSMRStrategy
+    
+    eur=makeForexContract(m_symbol='EUR',m_currency = 'GBP')
+    aapl=makeStkContrcat('AAPL')
+    bac=makeStkContrcat('BAC')
+    fut =makeForexContract('ES','201612')
+    symbol_list = [aapl,bac]
+    
+    Mystrategy= LiveExecutionContainer(
+        strategy=IntradayOLSMRStrategy
+        ,contract_list=symbol_list
+       
     )
-    backtest.simulate_trading()
+    
+    Mystrategy.run()

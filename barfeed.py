@@ -1035,3 +1035,451 @@ class LiveFeed(barfeed.BaseBarFeed):
         except Queue.Empty:
             pass
         return ret
+#=================
+#=================
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# data.py
+
+from abc import ABCMeta, abstractmethod
+import datetime
+import os, os.path
+
+import numpy as np
+import pandas as pd
+
+from event import MarketEvent
+
+
+class DataHandler(object):
+    """
+    DataHandler is an abstract base class providing an interface for
+    all subsequent (inherited) data handlers (both live and historic).
+
+    The goal of a (derived) DataHandler object is to output a generated
+    set of bars (OHLCVI) for each symbol requested. 
+
+    This will replicate how a live strategy would function as current
+    market data would be sent "down the pipe". Thus a historic and live
+    system will be treated identically by the rest of the backtesting suite.
+    """
+
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def get_latest_bar(self, symbol):
+        """
+        Returns the last bar updated.
+        """
+        raise NotImplementedError("Should implement get_latest_bar()")
+
+    @abstractmethod
+    def get_latest_bars(self, symbol, N=1):
+        """
+        Returns the last N bars updated.
+        """
+        raise NotImplementedError("Should implement get_latest_bars()")
+
+    @abstractmethod
+    def get_latest_bar_datetime(self, symbol):
+        """
+        Returns a Python datetime object for the last bar.
+        """
+        raise NotImplementedError("Should implement get_latest_bar_datetime()")
+
+    @abstractmethod
+    def get_latest_bar_value(self, symbol, val_type):
+        """
+        Returns one of the Open, High, Low, Close, Volume or OI
+        from the last bar.
+        """
+        raise NotImplementedError("Should implement get_latest_bar_value()")
+
+    @abstractmethod
+    def get_latest_bars_values(self, symbol, val_type, N=1):
+        """
+        Returns the last N bar values from the 
+        latest_symbol list, or N-k if less available.
+        """
+        raise NotImplementedError("Should implement get_latest_bars_values()")
+
+    @abstractmethod
+    def update_bars(self):
+        """
+        Pushes the latest bars to the bars_queue for each symbol
+        in a tuple OHLCVI format: (datetime, open, high, low, 
+        close, volume, open interest).
+        """
+        raise NotImplementedError("Should implement update_bars()")
+
+
+class HistoricCSVDataHandler(DataHandler):
+    """
+    HistoricCSVDataHandler is designed to read CSV files for
+    each requested symbol from disk and provide an interface
+    to obtain the "latest" bar in a manner identical to a live
+    trading interface. 
+    """
+
+    def __init__(self, events, csv_dir, symbol_list):
+        """
+        Initialises the historic data handler by requesting
+        the location of the CSV files and a list of symbols.
+
+        It will be assumed that all files are of the form
+        'symbol.csv', where symbol is a string in the list.
+
+        Parameters:
+        events - The Event Queue.
+        csv_dir - Absolute directory path to the CSV files.
+        symbol_list - A list of symbol strings.
+        """
+        self.events = events
+        self.csv_dir = csv_dir
+        self.symbol_list = symbol_list
+
+        self.symbol_data = {}
+        self.latest_symbol_data = {}
+        self.continue_backtest = True       
+        self.bar_index = 0
+
+        self._open_convert_csv_files()
+
+    def _open_convert_csv_files(self):
+        """
+        Opens the CSV files from the data directory, converting
+        them into pandas DataFrames within a symbol dictionary.
+
+        For this handler it will be assumed that the data is
+        taken from Yahoo. Thus its format will be respected.
+        """
+        comb_index = None
+        for s in self.symbol_list:
+            # Load the CSV file with no header information, indexed on date
+            self.symbol_data[s] = pd.io.parsers.read_csv(
+                os.path.join(self.csv_dir, '%s.csv' % s),
+                header=0, index_col=0, parse_dates=True,
+                names=[
+                    'datetime', 'open', 'high', 
+                    'low', 'close', 'volume', 'adj_close'
+                ]
+            ).sort()
+
+            # Combine the index to pad forward values
+            if comb_index is None:
+                comb_index = self.symbol_data[s].index
+            else:
+                comb_index.union(self.symbol_data[s].index)
+
+            # Set the latest symbol_data to None
+            self.latest_symbol_data[s] = []
+
+        for s in self.symbol_list:
+            self.symbol_data[s] = self.symbol_data[s].reindex(
+                index=comb_index, method='pad'
+            )
+            self.symbol_data[s]["returns"] = self.symbol_data[s]["adj_close"].pct_change()
+            self.symbol_data[s] = self.symbol_data[s].iterrows()
+
+    def _get_new_bar(self, symbol):
+        """
+        Returns the latest bar from the data feed.
+        """
+        for b in self.symbol_data[symbol]:
+            yield b
+
+    def get_latest_bar(self, symbol):
+        """
+        Returns the last bar from the latest_symbol list.
+        """
+        try:
+            bars_list = self.latest_symbol_data[symbol]
+        except KeyError:
+            print("That symbol is not available in the historical data set.")
+            raise
+        else:
+            return bars_list[-1]
+
+    def get_latest_bars(self, symbol, N=1):
+        """
+        Returns the last N bars from the latest_symbol list,
+        or N-k if less available.
+        """
+        try:
+            bars_list = self.latest_symbol_data[symbol]
+        except KeyError:
+            print("That symbol is not available in the historical data set.")
+            raise
+        else:
+            return bars_list[-N:]
+
+    def get_latest_bar_datetime(self, symbol):
+        """
+        Returns a Python datetime object for the last bar.
+        """
+        try:
+            bars_list = self.latest_symbol_data[symbol]
+        except KeyError:
+            print("That symbol is not available in the historical data set.")
+            raise
+        else:
+            return bars_list[-1][0]
+
+    def get_latest_bar_value(self, symbol, val_type):
+        """
+        Returns one of the Open, High, Low, Close, Volume or OI
+        values from the pandas Bar series object.
+        """
+        try:
+            bars_list = self.latest_symbol_data[symbol]
+        except KeyError:
+            print("That symbol is not available in the historical data set.")
+            raise
+        else:
+            return getattr(bars_list[-1][1], val_type)
+
+    def get_latest_bars_values(self, symbol, val_type, N=1):
+        """
+        Returns the last N bar values from the 
+        latest_symbol list, or N-k if less available.
+        """
+        try:
+            bars_list = self.get_latest_bars(symbol, N)
+        except KeyError:
+            print("That symbol is not available in the historical data set.")
+            raise
+        else:
+            return np.array([getattr(b[1], val_type) for b in bars_list])
+
+    def update_bars(self):
+        """
+        Pushes the latest bar to the latest_symbol_data structure
+        for all symbols in the symbol list.
+        """
+        for s in self.symbol_list:
+            try:
+                bar = next(self._get_new_bar(s))
+            except StopIteration:
+                self.continue_backtest = False
+            else:
+                if bar is not None:
+                    self.latest_symbol_data[s].append(bar)
+        self.events.put(MarketEvent())
+
+class LiveIBDataHandler():
+    """
+    IB Live Data Handler
+    """
+
+    def __init__(self, contract,
+                frequency=60,
+                eventQueue=None,
+                host="localhost",port=7496,       
+                warmupBars = 0, debug=False,fileOutput=None    
+    
+    
+    ):
+        """
+        Initialises IB data feed for a list of contract.
+
+        Parameters:
+        eventQueue - The Event Queue.
+        symbol_list - A list of IB contracts.
+        Identifier  - Name of the feed data
+        hots, port - IB gateway or Desktop connecting 
+        warmupBars - In case historical data are needed to initialize strategy
+        debug - If debug info must be shown
+        fileOutput  - Where the data feed data will persist its data
+        """
+        self.port=port
+        self.host=host
+        #Check if a queue is provided if not create one
+        #Queue are used to communicate with outside program that 
+        #share the same queue
+        if eventQueue !=None:
+            self.__queue = eventQueue
+        else:
+            self.__queue = queue.Queue()
+        
+        #Create a disctionary for bar
+        self.__currentBar = {}
+        
+        #Check if a contract has been provided or a list and 
+        #adapt accordingly because the following code expect a list
+        #of contract
+        if isinstance(contract,list):
+            self.__contracts=contract
+        elif isinstance(contract,Contract):
+            self.__contracts=[contract]
+        else:
+            raise('Contract should be either a contract or a list of contract')
+
+        #keep track of latest timestamp on any bars for requesting next set
+        self.__lastBarStamp = 0
+        self.__currentBarStamp = 0
+        
+      
+
+        self.__timer = None
+        
+        # File where historical values are outputed
+        self.__fileOutput=fileOutput
+        
+        # BAr frequency       
+        self.__frequency = frequency
+        '''
+        valid frequencies are (and we are really limited by IB here but it's a good range). If the values don't suit then look at taking a higher 
+        frequency and using http://gbeced.github.io/pyalgotrade/docs/v0.16/html/strategy.html#pyalgotrade.strategy.BaseStrategy.resampleBarFeed to get the desired frequency
+            - 1 minute - 60 - bar.Frequency.MINUTE 
+            - 2 minutes - 120 - (bar.Frequency.MINUTE * 2)
+            - 5 minutes - 300 - (bar.Frequency.MINUTE * 5)
+            - 15 minutes - 900 - (bar.Frequency.MINUTE * 15)
+            - 30 minutes - 1800 - (bar.Frequency.MINUTE * 30)
+            - 1 hour - 3600 - bar.Frequency.HOUR
+            - 1 day - 86400 - bar.Frequency.DAY
+
+            Note: That instrument numbers and frequency affect pacing rules. Keep it to 3 instruments with a 1 minute bar to avoid pacing. Daily hits could include as many as 60 instruments as the limit is 60 calls within a ten minute period. We make one request per instrument for the warmup bars and then one per instrument every frequency seconds. See here for more info on pacing - https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
+
+        '''
+        if self.__frequency not in [60,120,300,900,1800,3600,86400]:
+            raise Exception("Please use a frequency of 1,2,5,15,30,60 minutes or 1 day")
+
+        #builds up a list of quotes
+        self.__synchronised = False #have we synced to IB's bar pace yet?
+
+        if debug == False:
+            self.__debug = False
+        else:
+            self.__debug = True
+        
+        self.__ib           = None
+        self.connectionTime = None
+        self.serverVersion  = None
+        self.IbConnect() 
+        #### historical code from Data feed      
+        #self.symbol_list = symbol_list
+        self.symbol_data = {}
+        self.latest_symbol_data = {}
+        self.bar_index = 0
+        ###
+        
+        #warming up?
+        self.__numWarmupBars = warmupBars
+        self.__warmupBars = dict((el,[]) for el in self.__contracts)        #the warmup bars arrays indexed by stock code
+        #are we still in the warmup phase - when finished warming up this is set to false
+        self.__stockFinishedWarmup = dict((el,False) for el in self.__contracts)  #has this stock finished warming up? create dict keyed by stock and set to false
+
+        if self.__numWarmupBars ==0:
+            self.__inWarmup = False 
+            self.__requestBars()
+            
+        else:
+            if warmupBars > 0:
+                if warmupBars > 200:
+                    raise Exception("Max number of warmup bars is 200")
+                self.__inWarmup = True
+                self.__requestWarmupBars()
+            else:
+                raise Exception("warmup number must be between 0 and 200")
+                
+         
+    def IbConnect(self):
+        #Ib connection parameters
+        self.__ib = ibConnection(host=self.host,
+                                 port=self.port,
+                                 clientId=random.randint(1,10000)
+                                 )
+        self.__ib.register(self._get_new_bar, message.realtimeBar)
+        #self.__ib.register(self.__errorHandler, message.error)
+        #self.__ib.register(self.__disconnectHandler, 'ConnectionClosed')
+        #self.__ib.registerAll(self.__debugHandler)
+        self.__ib.connect()
+        if self.__ib.isConnected():
+            self.connectionTime=self.__ib.reqCurrentTime()
+            self.serverVersion=self.__ib.serverVersion()
+            if self.__debug:
+                print('********************************')
+                print('%s LiveIBDataHandler - DATA FEED Connection to IB established' % (dt.datetime.now().strftime('%Y%m%d %H:%M:%S')))
+                print('%s LiveIBDataHandler- IB server connection time: %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),self.connectionTime))
+                print('%s LiveIBDataHandler- IB server version: %s' % (dt.datetime.now().strftime('%Y%m%d %H:%M:%S'), self.serverVersion))
+                
+        else:
+            print('LiveIBDataHandler Connection to IB Error')
+
+    def __requestBars(self):
+
+        self.__currentBar = {}
+        if self.__debug:
+            print('** [LiveIBDataHandler __requestBars] ******************************')
+        #what are our duration and frequency settings
+        for tickId in range(len(self.__contracts)):
+            #self.__ib.reqMktData(ticker_id, self.__contracts[tickId], generic_tick_keys, False)
+           
+            self.__ib.reqRealTimeBars(
+                            tickerId=tickId,
+                             contract= self.__contracts[tickId],
+                              barSize=5,
+                              whatToShow='TRADES',
+                              useRTH=0
+            )
+            #sleep(1)
+
+        if self.__debug:
+            print('%s [LiveIBDataHandler __requestBars] tickid:, symbol: %s, security: %s, right: %s, expiry: %s, strike: %s' %(dt.datetime.now().strftime('%Y%m%d %H:%M:%S'),tickId,self.__contracts[tickId].m_symbol,self.__contracts[tickId].m_secType,self.__contracts[tickId].m_expiry,self.__contracts[tickId].m_strike))
+            print('[LiveIBDataHandler __requestBars]==EXIT=======EXIT============================================')
+
+    def _get_new_bar(self,msg):
+        now=datetime.datetime.now()
+        barMsg=msg
+        frequency=5
+        tz=pytz.timezone('America/New_York')
+        startDateTime = localize(datetime.datetime.fromtimestamp(int(msg.time),tz),tz)
+
+        if self.__debug:
+            print ('%s[LiveFeed __build_bar] time: %s, symb: %s, Open: %d ,High: %d, Low: %d, Close: %d, Volume: %d, frequency: %s' %(now,startDateTime,self.__contracts[msg.reqId].m_symbol, float(barMsg.open), float(barMsg.high), float(barMsg.low), float(barMsg.close), int(barMsg.volume), frequency))
+    
+        #bar= bar.BasicBar(startDateTime, float(barMsg.open), float(barMsg.high), float(barMsg.low), float(barMsg.close), int(barMsg.volume), None, frequency)
+
+        
+        barEvent={
+            'datetime':msg.time,
+            'contract':self.__contracts[msg.reqId],          
+            'Open':msg.open,
+             'Close':msg.close,
+             'High':msg.high,
+             'Low':msg.low,
+             'wap':msg.wap,
+             'Volume':msg.volume}
+             
+        
+        self.__queue.put(MarketEvent(barEvent,self.__contracts[msg.reqId]))
+        if self.__debug:
+            print ("@@@@@ BAR PUT ON THE QUEUE")
+        
+            
+"""
+def makeStkContrcat(m_symbol,m_secType = 'STK',m_exchange = 'SMART',m_currency = 'USD'):
+    from ib.ext.Contract import Contract
+    newContract = Contract()
+    newContract.m_symbol = m_symbol
+    newContract.m_secType = m_secType
+    newContract.m_exchange = m_exchange
+    newContract.m_currency = m_currency
+    return newContract
+
+def makeForexContract(m_symbol,m_secType = 'CASH',m_exchange = 'IDEALPRO',m_currency = 'USD'):
+    from ib.ext.Contract import Contract
+    newContract = Contract()
+    newContract.m_symbol = m_symbol
+    newContract.m_secType = m_secType
+    newContract.m_exchange = m_exchange
+    newContract.m_currency = m_currency
+    return newContract
+
+bac=makeStkContrcat('BAC')
+aapl=makeStkContrcat('AAPL')
+
+eur=makeForexContract('AUD') 
+Live        =   LiveIBDataHandler([bac,aapl],debug=True)
+"""

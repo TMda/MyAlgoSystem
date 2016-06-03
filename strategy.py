@@ -18,6 +18,7 @@ import pandas as pd
 from event import SignalEvent
 import time
 
+
 class Strategy2(object):
     """
     Strategy is an abstract base class providing an interface for

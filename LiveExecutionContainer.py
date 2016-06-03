@@ -28,7 +28,8 @@ class LiveExecutionContainer(object):
     """
 
     def __init__(
-        self, barfeed, IbBroker,strategy,contract_list
+        self, strategy,contract_list,fileOutput=None,
+        heartbeat=5
     ):
         """
         Initialises the backtest.
@@ -41,13 +42,16 @@ class LiveExecutionContainer(object):
         """
         
         
-       
+        
         self.contract_list=contract_list
-        self.barFeed = data_handler
-        self.IbBroker = execution_handler
-        self.strategy_cls = strategy
+        self.barFeed  = None
+        self.IbBroker = None
+        self.strategy = None
+        self.strategy_input = strategy
         self.events = queue.Queue()
-    
+        
+        self.fileOutput=fileOutput
+        self.heartbeat=heartbeat
         self.signals = 0
         self.orders = 0
         self.fills = 0
@@ -60,30 +64,31 @@ class LiveExecutionContainer(object):
         Generates the trading instance objects from 
         their class types.
         """
+        from barfeed import LiveIBDataHandler
+        from IbBroker import MyIbBroker_last
         print(
             "Creating DataHandler, Strategy, Portfolio and ExecutionHandler"
         )
-        self.data_handler = self.data_handler_cls(
+        self.data_handler = LiveIBDataHandler(
                 contract=self.contract_list,
-                frequency=60,
                 eventQueue=self.events,
-                identifiers=None,
                 host="localhost",port=7496,
                 warmupBars = 0, debug=False,
                 fileOutput=None)
-        self.IbBroker_handler=self.IbBroker(
-                host="localhost", port=7496, 
-                debug=False, clientId = None, event=None        
+                
+        
+        self.strategy = self.strategy_input(
+                Ibroker=MyIbBroker_last(host="localhost", port=7496, debug=True, clientId = None, event=self.events )
+                , contract_list=self.contract_list
+        
         
         )
-        self.strategy = self.strategy_cls(
-                LiveBarFeed=self.data_handler,
-                broker=self.IbBroker_handler,
-                debug=True        
         
-        )
+        
+        
+        
  
-    def _run_backtest(self):
+    def _run_live(self):
         """
         Executes the backtest.
         """
@@ -91,12 +96,14 @@ class LiveExecutionContainer(object):
         while True:
             i += 1
             print(i)
-            # Update the market bars
+            # condition to stop the live run, put a file named stop in
+            # output 
+            """
             if self.data_handler.continue_backtest == True:
                 self.data_handler.update_bars()
             else:
                 break
-
+            """
             # Handle the events
             while True:
                 try:
@@ -106,27 +113,27 @@ class LiveExecutionContainer(object):
                 else:
                     if event is not None:
                         if event.type == 'MARKET':
-                            self.strategy.calculate_signals(event)
-                            self.portfolio.update_timeindex(event)
+                            self.strategy.onBar(event.bar)
+                            #self.portfolio.update_timeindex(event)
 
                         elif event.type == 'SIGNAL':
                             self.signals += 1                            
-                            self.portfolio.update_signal(event)
+                            #self.portfolio.update_signal(event)
 
                         elif event.type == 'ORDER':
                             self.orders += 1
-                            self.execution_handler.execute_order(event)
+                            #self.execution_handler.execute_order(event)
 
                         elif event.type == 'FILL':
                             self.fills += 1
-                            self.portfolio.update_fill(event)
+                            #self.portfolio.update_fill(event)
 
             time.sleep(self.heartbeat)
-
+    """
     def _output_performance(self):
-        """
-        Outputs the strategy performance from the backtest.
-        """
+        
+        #Outputs the strategy performance from the backtest.
+        
         self.portfolio.create_equity_curve_dataframe()
         
         print("Creating summary stats...")
@@ -139,10 +146,10 @@ class LiveExecutionContainer(object):
         print("Signals: %s" % self.signals)
         print("Orders: %s" % self.orders)
         print("Fills: %s" % self.fills)
-
+    """
     def run(self):
         """
         Simulates the backtest and outputs portfolio performance.
         """
-        self._run_backtest()
-        self._output_performance()
+        self._run_live()
+        #self._output_performance()
