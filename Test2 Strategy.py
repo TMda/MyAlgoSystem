@@ -81,7 +81,7 @@ class IntradayOLSMRStrategy():
     """
     
     def __init__(
-        self, Ibroker ,contract_list
+        self,strategyName, Ibroker ,contract_list
     ):
         """
         Initialises the stat arb strategy.
@@ -90,6 +90,8 @@ class IntradayOLSMRStrategy():
         bars - The DataHandler object that provides bar information
         events - The Event Queue object.
         """
+        self.strategyName=strategyName
+        self.run_number=0
         self.barBAC = []
         self.barAAPL= []
         self.x=np.array(1)
@@ -143,19 +145,20 @@ class IntradayOLSMRStrategy():
         
 
 
+
 if __name__ == "__main__":
     csv_dir = '/path/to/your/csv/file'  # CHANGE THIS!
     
-    eur=makeForexContract(m_symbol='EUR',m_currency = 'GBP')
-    aapl=makeStkContrcat('AAPL')
-    bac=makeStkContrcat('BAC')
-    fut =makeForexContract('ES','201612')
-    symbol_list = [aapl,bac]
+    eur         =   makeForexContract(m_symbol='EUR',m_currency = 'GBP')
+    aapl        =   makeStkContrcat('AAPL')
+    bac         =   makeStkContrcat('BAC')
+    fut         =   makeForexContract('ES','201612')
+    symbol_list =   [aapl,bac]
     
     Mystrategy= LiveExecutionContainer(
-        strategy=IntradayOLSMRStrategy
-        ,contract_list=symbol_list
-       
-    )
+        strategyName   =   'myFirstTest',
+        strategy        =   IntradayOLSMRStrategy,
+        contract_list   =   symbol_list
+         )
     
     Mystrategy.run()

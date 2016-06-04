@@ -12,8 +12,18 @@ Requires:
 - ibPy - https://github.com/blampe/IbPy included in the OneDrive Directory
 - trader work station or IB Gateway - https://www.interactivebrokers.com/en/?f=%2Fen%2Fsoftware%2Fibapi.php&ns=T
 - PyAlgo 2.7 included in the onedrive python bin directory
+- Elastic Search for storing and visualizing performances - Not mandatory
+File Structure
 
+MyAlgoSystem
+   |- lib
+        |- ElasticSearch 
+   |- control_files
+        |- runfile : File with just START, STOP that controls liveExec
+        |- run_number : File with a number to uniquely identify strategy run in ElasticSearch
+
+    
 The IBroker as a queue where commands are executed
-The Datafeed as a queue where price informations are received
+The Datafeed as a queue where price informations are pushed to the strategy
 The strategy as both a datafeed to get price for the strategy and IbBroker to send orders to be executed
 

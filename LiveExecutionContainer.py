@@ -13,7 +13,7 @@ Created on Thu Jun 02 09:20:05 2016
 from __future__ import print_function
 
 import datetime
-import pprint
+
 try:
     import Queue as queue
 except ImportError:
@@ -28,8 +28,8 @@ class LiveExecutionContainer(object):
     """
 
     def __init__(
-        self, strategy,contract_list,fileOutput=None,
-        heartbeat=5
+        self,strategyName, strategy,contract_list,fileOutput=None,
+        heartbeat=3
     ):
         """
         Initialises the backtest.
@@ -42,7 +42,7 @@ class LiveExecutionContainer(object):
         """
         
         
-        
+        self.strategyName=strategyName
         self.contract_list=contract_list
         self.barFeed  = None
         self.IbBroker = None
@@ -78,8 +78,9 @@ class LiveExecutionContainer(object):
                 
         
         self.strategy = self.strategy_input(
-                Ibroker=MyIbBroker_last(host="localhost", port=7496, debug=True, clientId = None, event=self.events )
-                , contract_list=self.contract_list
+                strategyName=self.strategyName,
+                Ibroker=MyIbBroker_last(strategy_name=self.strategyName,host="localhost", port=7496, debug=True, clientId = None, event=self.events ),
+                contract_list=self.contract_list
         
         
         )
@@ -96,14 +97,43 @@ class LiveExecutionContainer(object):
         while True:
             i += 1
             print(i)
+            
             # condition to stop the live run, put a file named stop in
-            # output 
-            """
-            if self.data_handler.continue_backtest == True:
-                self.data_handler.update_bars()
-            else:
+            # output
+            try:
+
+
+                fo = open("control_files\\runfile", "r+")
+                print("File open")
+                order=fo.read()
+                fo.close()
+
+                print ("Control Order list: %s" %(order))
+                
+                print("file split")
+                if len(order) in [4,5]:
+                    
+                    print ("Control Order received : %s" %(order))
+                    
+                   
+                    if order=='STOP':
+                        self.strategy.IbBroker.stop()
+                        self.data_handler.stop()
+                        print ("SYSTEM STOPPED : %s" %(order))
+                        break
+                else:
+                    print("Problem opening the file")
+                   
+            except Exception as e:
+                print(e)
+                print("Problem")
+                raise
                 break
-            """
+                #raise("Problem")
+                #pass
+            
+            
+
             # Handle the events
             while True:
                 try:

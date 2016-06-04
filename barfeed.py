@@ -1279,7 +1279,7 @@ class LiveIBDataHandler():
                 warmupBars = 0, debug=False,fileOutput=None    
     
     
-    ):
+        ):
         """
         Initialises IB data feed for a list of contract.
 
@@ -1292,6 +1292,7 @@ class LiveIBDataHandler():
         debug - If debug info must be shown
         fileOutput  - Where the data feed data will persist its data
         """
+        self.__stop = False
         self.port=port
         self.host=host
         #Check if a queue is provided if not create one
@@ -1456,6 +1457,15 @@ class LiveIBDataHandler():
         self.__queue.put(MarketEvent(barEvent,self.__contracts[msg.reqId]))
         if self.__debug:
             print ("@@@@@ BAR PUT ON THE QUEUE")
+    def stop(self):
+        print("@@@@@@@@@@@@@@@@@@@@")
+        self.__stop = True
+        self.__ib.disconnect()
+        print("@@@@@@@@@@@@@@@@@@@@")
+        print("@@@ @ @@@@@@@@@@@@@@")
+        print("@@  @@ @@@@@@@@@@@@@@")
+        print("@@   @@@ @@@@@@@@@@@@@@")
+        print("@@@@@@@@@@@@@@@@@@@@")
         
             
 """

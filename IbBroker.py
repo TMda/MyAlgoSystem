@@ -1,15 +1,9 @@
 #
 from __future__ import print_function
-import pandas as pd
-from pyalgotrade.barfeed import csvfeed
-from pyalgotrade import strategy
-from pyalgotrade import bar
-from pyalgotrade.technical import ma
 from ib.ext import Contract
 from ib.ext import Order
 import time
 from ib.opt import ibConnection, message
-import numpy as np
 import random
 import datetime as dat
 import datetime
@@ -23,6 +17,7 @@ except ImportError:
 import numpy as np
 import pandas as pd
 
+from lib.ElasticSearch import loadIntoEsIndex
 from event import MarketEvent
 from performance import create_sharpe_ratio, create_drawdowns
 
@@ -30,7 +25,9 @@ from performance import create_sharpe_ratio, create_drawdowns
 
 class MyIbBroker_last():
     def __init__(self, host="localhost", port=7496, 
-                debug=False, clientId = None, event=None):
+                debug=False, clientId = None, event=None,strategy_name='ANO'):
+
+        self.__stop=False
 
         if debug == False:
             self.__debug = False
@@ -43,7 +40,8 @@ class MyIbBroker_last():
             self.event = event
         else:
             self.event = queue.Queue()
-        # Interactive Broker Connection 
+        # Interactive Broker Connection
+        self.strategy_name=strategy_name
         self.connectionTime=None
         self.serverVersion=None
         self.clientId=clientId
@@ -101,7 +99,10 @@ class MyIbBroker_last():
         #Cash Management
         self.__cash = 0
         self.__nextOrderId = 0
-
+        
+        #Get the run number that will differentiate every strategy run in ES DB
+        self.run_number =None
+        self.getRunNumber()
         #Request initial account balance
         self.refreshAccountBalance()
         # Request current open order in the system
@@ -136,14 +137,66 @@ class MyIbBroker_last():
             self.connectionTime=self.__ib.reqCurrentTime()
             self.serverVersion=self.__ib.serverVersion()
             if self.__debug:
-                print('%s[IB LiveBroker]********************************'%(now,))
-                print('%s[IB LiveBroker]Connection to IB established'%(now,))
-                print('%s[IB LiveBroker]IB server connection time: %s' %(now,self.connectionTime))
-                print('%s[IB LiveBroker]IB server version: %s' %(now,self.serverVersion))
+                print('%s[MyIbBroker_last]********************************'%(now,))
+                print('%s[MyIbBroker_last]Connection to IB established'%(now,))
+                print('%s[MyIbBroker_last]IB server connection time: %s' %(now,self.connectionTime))
+                print('%s[MyIbBroker_last]IB server version: %s' %(now,self.serverVersion))
                 
         else:
-            print('[LiveBroker] Connection to IB Error')
+            print('[MyIbBroker_last] Connection to IB Error')
         ### End Connection to IB 
+    def getRunNumber(self):
+        if self.__debug:
+            now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
+            print('%s[MyIbBroker_last __getRunNumber]********************************'%(now,))
+            print('%s[MyIbBroker_last __getRunNumber]Get run number'%(now,))
+
+        try:
+            with open("control_files\\run_number","r") as fo:
+                #if self.__debug:
+                #    print('%s[MyIbBroker_last __getRunNumber] File Opened: %s'%(now,fo))
+                order_number=fo.read().split()
+                fo.close()
+                #if self.__debug:
+                #    print('%s[MyIbBroker_last __getRunNumber] File containt list: %s'%(now,order_number))
+
+                if len(order_number)==1:
+                    try:
+                        order=int(order_number[0])
+                 #       if self.__debug:
+                 #           print('%s[MyIbBroker_last __getRunNumber] Run number: %s'%(now,order))
+                        
+                        self.run_number=order
+                        if self.__debug:
+                            print('%s[MyIbBroker_last __getRunNumber] self Run number: %s'%(now,self.run_number))
+
+                        order +=1
+                #        if self.__debug:
+                #            print('%s[MyIbBroker_last __getRunNumber] increased Run number: %s'%(now,order))
+                        order=str(order)
+                #        if self.__debug:
+                #            print('%s[MyIbBroker_last __getRunNumber] type (order): %s'%(now,type(order)))
+
+                        f=open("control_files\\run_number","w")
+                #        if self.__debug:
+                #            print('%s[MyIbBroker_last __getRunNumber] writing file opened'%(now,))
+
+                        f.write(str(order))
+                #        if self.__debug:
+                #            print('%s[MyIbBroker_last __getRunNumber] File wrote'%(now,))
+                        
+                        f.close()
+                        if self.__debug:
+                            print('%s[MyIbBroker_last __getRunNumber] Increased number written in the file:'%(now,))
+                        
+                        return
+                    except Exception as e:
+                        #print(e)
+                        raise("[MyIbBroker_last __getRunNumber] END File control_files/run_number must have an integer number in it")
+        except  :
+            #print(Exception)
+            raise("[MyIbBroker_last __getRunNumber]File control_files/run_number must exist")
+
     def __accountHandler(self,msg):
         #FYI this is not necessarily USD - probably AUD for me as it's the base currency so if you're buying international stocks need to keep this in mind
         #self.__cash = round(balance.getUSDAvailable(), 2)
@@ -271,6 +324,7 @@ class MyIbBroker_last():
         """
         return a pd Series, that can be used as a dictionary
         """
+        #assert(orderId is int),"__getActiveOrder order ID must be integer"
         return self.__activeOrders.loc[orderId] 
 
 
@@ -310,6 +364,9 @@ class MyIbBroker_last():
         """
         Feedback handler managing OrderStatus Messages
         """
+        # <orderStatus orderId=5, status=PreSubmitted, 
+        #filled=0, remaining=10, avgFillPrice=0.0, permId=745610442,
+        #parentId=0, lastFillPrice=0.0, clientId=2457, whyHeld=locate>
         if self.__debug:
             now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             print ('%s[MyIbBroker_last __orderStatusHandler] BEGIN********__orderStatusHandler *****************' % (now,))
@@ -317,23 +374,23 @@ class MyIbBroker_last():
             print ('%s[MyIbBroker_last __orderStatusHandler]................................................'%(now,))
             print ('%s[MyIbBroker_last __orderStatusHandler] %s' %(now,msg))
             print ('%s[MyIbBroker_last __orderStatusHandler]................................................'%(now,))
-           
-        order = self.__getActiveOrder(msg.orderId)
-        if self.__debug:
-            print ('%s[MyIbBroker_last __orderStatusHandler] active Order retrieved from __activeOrder table :' % (now,))
-            print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
-            print ('%s[MyIbBroker_last __orderStatusHandler]................................................'%(now,))
-        
-        if order == None:
+        try:   
+            order = self.__getActiveOrder(int(msg.orderId))
+        except Exception as e:
+
             if self.__debug:
-                print ('%s[MyIbBroker_last __orderStatusHandler] RETURN - There was no active Order retrieved from __activeOrder table  :' % (now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] ERROR GETTING ORDER FROM ACTIVE ORDER TABLE:' % (now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,e))
+                print ('%s[MyIbBroker_last __orderStatusHandler]................................................'%(now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] There was no active Order retrieved from __activeOrder table  :' % (now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] Open Order Not in Active Order, Order registered in active order, Cancell it if not necessary anymore'%(now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
+                #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
+                print ('%s[MyIbBroker_last __orderStatusHandler] This is not a response from an active order submitted during this session - Open order should handle it'%(now,))
                 print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
-
-            return
-
-        #watch out for dupes - don't submit state changes or events if they were already submitted
-
+                return 
         
+       
         if msg.status == 'Filled' and order['status'] != 'FILLED':
             
             order['avgFillPrice']=msg.avgFillPrice
@@ -349,7 +406,7 @@ class MyIbBroker_last():
         elif msg.status == 'Submitted' and msg.filled > 0:
             order['status'] = 'PARTIALLY_FILLED'
             order['avgFillPrice']=msg.avgFillPrice
-            order['FilledQuantitiy']+=abs(msg.filled)
+            order['FilledQuantitiy']= abs(msg.filled)
             order['openOrderYesNo']=True
             self.__updateActiveOrder(order)
             
@@ -367,25 +424,35 @@ class MyIbBroker_last():
             #order.setState(broker.Order.State.CANCELED)
             self._unregisterOrder(order,raison='CANCELLED')
             if self.__debug:
-                print ('%s[MyIbBroker_last __orderStatusHandler] CANCELED Order - Order removed from __activeOrder table :' % (now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] CANCELED ORDER - ORDER removed from __activeOrder table :' % (now,))
                 print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
                 print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
                 print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
           
         else:
-            if self.__debug:
-                print ('%s[MyIbBroker_last __orderStatusHandler] UNKNOWN CASE TO INVESTIGATE :' % (now,))
-                print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
-                print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
-                print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
-                raise ("[MyIbBroker_last __orderStatusHandler] ERROR UNKWNON CASE TO INVESTIGATE")
+            if msg.status=='PreSubmitted' and order['status']=='PRESUBMITTED':
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __orderStatusHandler] ORDER in PRESUBMITTED STATE NOTHING TO DO' % (now,))
+                    #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
+                    #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
+                    print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
+                    #raise ("[MyIbBroker_last __orderStatusHandler] ERROR UNKWNON CASE TO INVESTIGATE")
         
-
+            else:
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __orderStatusHandler] UNKNOWN ORDER TO INVESTIGRE' % (now,))
+                    print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
+                    #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
+                    print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
+            
 
 
     #get portfolio messages - stock, price, purchase price etc
     def __portfolioHandler(self,msg):
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        #<updatePortfolio contract=<ib.ext.Contract.Contract object at 0x000000000BB83048>, position=-5, 
+        #marketPrice=1.13680005, marketValue=-5.68, averageCost=0.91886, unrealizedPNL=-1.09, 
+        #realizedPNL=0.0, accountName=DU213041>
         if self.__debug:
             print ('%s[MyIbBroker_last __portfolioHandler] BEGIN********__portfolioHandler *****************' % (now,))
             print ('%s[MyIbBroker_last __portfolioHandler] Message received from Server:' % (now,))
@@ -395,6 +462,10 @@ class MyIbBroker_last():
 
         
         ibContract=msg.contract
+        
+        
+        
+        
         portDict={
         'datetime'                  :   now,
         'ibContract_m_symbol'       :   ibContract.m_symbol,
@@ -412,26 +483,67 @@ class MyIbBroker_last():
         'unrealizedPNL' :   msg.unrealizedPNL,
         'realizedPNL'   :   msg.realizedPNL,
         'accountName'   :   msg.accountName,}
-        
         if self.__debug:
             print ('%s[MyIbBroker_last __portfolioHandler]Existing Position Received from IB: ' %(now,))
             print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,portDict))
         
         self.__positionsHistory=self.__positionsHistory.append(pd.Series(portDict),ignore_index=True)
         if self.__debug:
-            print ('%s[MyIbBroker_last __portfolioHandler] Position Received from IB added to Position history:  ' %(now,))
+            print ('%s[MyIbBroker_last __portfolioHandler] Position Received from IB added POSITION HISTORY:  ' %(now,))
+            print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
             print ('%s[MyIbBroker_last __portfolioHandler]  %s  ' %(now,self.__positionsHistory))
+            print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
 
-        #Checking if the position is already registered in the Active Position table
+
+        co    =   ("%s-%s-%s-%s-%s" %(ibContract.m_symbol,ibContract.m_secType,ibContract.m_right,ibContract.m_strike,ibContract.m_expiry )).strip()
+        if self.__debug:
+            print ('%s[MyIbBroker_last __portfolioHandler] Contract :  %s' %(now,co))
+        try:
+            loadIntoEsIndex(portDict,strategy_name=self.strategy_name,run_number  = self.run_number,Contract=co)            
+            if self.__debug:
+                print ('%s[MyIbBroker_last __portfolioHandler] Position Received from IB added into ELASTIC SEARCH:  ' %(now,))
+        except Exception as e:
+            if self.__debug:
+                print ('%s[MyIbBroker_last __portfolioHandler] Error loading to ELASTIC SEARCH:  ' %(now,))
+                print (e)
+                raise("ERROR")
+
+        
+        #Checking if the Contract of the position is already in the Active Position table
         #1 step checking if the contract exist in the active position table
-        contractExist=False
-        if not self.__activePositions.empty:
-            for position in self.__activePositions:
+        
+        if self.__activePositions.empty: #Active position table is empty no position in it
+            self.__activePositions=self.__activePositions.append(pd.Series(portDict),ignore_index=True)
+            if self.__debug:
+                print ('%s[MyIbBroker_last __portfolioHandler] Active Positon table empty :added to Active Position:  ' %(now,))
+                print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
+                #print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,self.__activePositions))
+                #print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
+            #self.__activePositions.to_csv('activePositions_.csv')
+            #self.__positionsHistory.to_csv('positionsHistory.csv')
+            if self.__debug:
+                #print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,self.__activePositions))
+                print ('%s[MyIbBroker_last __portfolioHandler] END********__portfolioHandler *****************' % (now,))
+            return
+        else:
+            contract_exist=False
+            if self.__debug:
+                print ('%s[MyIbBroker_last __portfolioHandler] Active Positon table not empty - Checking if contract exists in Active position table ' %(now,))
+                print ('%s[MyIbBroker_last __portfolioHandler] Active Position table:\n %s ' %(now,self.__activePositions))
+            for pos in range(self.__activePositions.shape[0]):
+                position=self.__activePositions.loc[pos]
                 if self.__debug:
-                    print ('%s[MyIbBroker_last __portfolioHandler] checking if contract exists:  ' %(now,))
-                    print(type(position['ibContract_m_symbol']))
+                    print(type(position))
                     print(position['ibContract_m_symbol'])
-                if position['ibContract_m_symbol']      ==  ibContract.m_symbol and \
+                    print ('%s[MyIbBroker_last __portfolioHandler] iter Position: %s ' %(now,position))
+
+
+                assert(type(position) is pd.Series),"[MyIbBroker_last __portfolioHandler] Position must be a pd.Series"
+
+            
+                   
+                    
+                if position['ibContract_m_symbol']      ==  ibContract.m_symbol and\
                     position['ibContract_m_secType']    ==  ibContract.m_secType and\
                     position['ibContract_m_currency']   ==  ibContract.m_currency and\
                     position['ibContract_m_exchange']   ==  ibContract.m_exchange and\
@@ -445,21 +557,27 @@ class MyIbBroker_last():
                         position['averageCost']     =   msg.averageCost,
                         position['unrealizedPNL']   =   msg.unrealizedPNL,
                         position['realizedPNL']     =   msg.realizedPNL,
-                        contractExist=True    
                         if self.__debug:
-                            print ('%s[MyIbBroker_last __portfolioHandler] Contract Received from IB existing in Active Positon table, PNL information updated:  ' %(now,))
+                            print ('%s[MyIbBroker_last __portfolioHandler] Contract Received from IB existing in this Positon, PNL information updated:  ' %(now,))
                             print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,self.__activePositions))
-        # 2 Contract does not exist in active table adding it
-        if contractExist==False:
-            self.__activePositions=self.__activePositions.append(pd.Series(portDict),ignore_index=True)
-            if self.__debug:
-                print ('%s[MyIbBroker_last __portfolioHandler] Position Received from IB Not existing in Active Positon table:added to Active Position:  ' %(now,))
-                print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,self.__activePositions))
-                print ('%s[MyIbBroker_last __portfolioHandler] END********__portfolioHandler *****************' % (now,))
-        self.__activePositions.to_csv('activePositions_.csv')
-        self.__positionsHistory.to_csv('positionsHistory.csv')
- 
+                            contract_exist=True
+                else:
+                    if self.__debug:
+                        print ('%s[MyIbBroker_last __portfolioHandler] Contract Received not in this position, Checking next position in Active position table' %(now,))
+                
 
+            if contract_exist == False:
+                self.__activePositions=self.__activePositions.append(pd.Series(portDict),ignore_index=True)
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __portfolioHandler] Contract not in Active Positon: ADDED to Active Position:  ' %(now,))
+                    print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
+                    print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,self.__activePositions))
+                    #print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
+                    #self.__activePositions.to_csv('activePositions_.csv')
+                    #self.__positionsHistory.to_csv('positionsHistory.csv')
+                    print ('%s[MyIbBroker_last __portfolioHandler] END********__portfolioHandler *****************' % (now,))
+                return
+    
     def __openOrderHandler(self,msg):
         #Do nothing now but might want to use this to pick up open orders at start (eg in case of shutdown or crash)
         #note if you want to test this make sure you actually have an open order otherwise it's never called
@@ -470,23 +588,27 @@ class MyIbBroker_last():
         #note if you want to test this make sure you actually have an open order otherwise it's never called
         #Remember this is called once per open order so if you have 3 open orders it's called 3 times
 
-        now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
-        ibContract=msg.contract
-        ibOrder =msg.order
+        now             =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
+        ibContract      =   msg.contract
+        ibOrder         =   msg.order
+        #ibOrderState    =   msg.orderState
+        
+
 
         if self.__debug:
             print ('%s[MyIbBroker_last __openOrderHandler] BEGIN*********__openOrderHandler*******************'%(now,))
             print ('%s[MyIbBroker_last __openOrderHandler] Message received from Server:' %(now,))
             print ('%s[MyIbBroker_last __openOrderHandler]  %s' %(now,msg))
             print ('%s[MyIbBroker_last __openOrderHandler]................................................'%(now,))
+            """
             print ('%s[MyIbBroker_last __openOrderHandler] CONTRACT RECEIVED FROM IB')
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_symbol    : %s' %(now,ibContract.msymbol)) 
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_secType   : %s' %(now,ibContract.msecType)) 
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_currency  : %s' %(now,ibContract.mcurrency)) 
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_exchange  : %s' %(now,ibContract.mexchange)) 
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_multiplier: %s' %(now,ibContract.mmultiplier)) 
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_expiry    : %s' %(now,ibContract.mexpiry)) 
-            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_strike    : %s' %(now,ibContract.mstrike))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_symbol    : %s' %(now,ibContract.m_symbol)) 
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_secType   : %s' %(now,ibContract.m_secType)) 
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_currency  : %s' %(now,ibContract.m_currency)) 
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_exchange  : %s' %(now,ibContract.m_exchange)) 
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_multiplier: %s' %(now,ibContract.m_multiplier)) 
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_expiry    : %s' %(now,ibContract.m_expiry)) 
+            print ('%s[MyIbBroker_last __openOrderHandler] ibContract.m_strike    : %s' %(now,ibContract.m_strike))
             print ('%s[MyIbBroker_last __openOrderHandler] ORDER RECEIVED from IB  '%(now,))
             print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_orderId      : %s' %(now,ibOrder.m_orderId)) 
             print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_clientId     : %s' %(now,ibOrder.m_clientId  )) 
@@ -499,34 +621,58 @@ class MyIbBroker_last():
             print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_totalQuantity: %s' %(now,ibOrder.m_totalQuantity ))
             print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_allOrNone    : %s' %(now,ibOrder.m_allOrNone ))
             print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_tif          : %s' %(now,(ibOrder.m_tif )))
-
-        ibOderFromActiveTable = self.__getActiveOrder(msg.order.orderId)
-        if isinstance(ibOderFromActiveTable,pd.Series):
-            if self.__debug:
-                print ('%s[MyIbBroker_last __openOrderHandler] Open Order in existing in Active Order TABLE'%(now,))
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_orderId: %s' %(now,ibOderFromActiveTable.m_orderId)) 
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_clientId  : %s' %(now,ibOderFromActiveTable.m_clientId  )) 
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_action : %s' %(now,ibOderFromActiveTable.m_action )) 
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_lmtPrice : %s' %(now,ibOderFromActiveTable.m_lmtPrice )) 
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_auxPrice: %s' %(now,ibOderFromActiveTable.m_auxPrice)) 
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_tif  %s' %(now,ibOderFromActiveTable.m_tif ))
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_transmit  %s' %(now,ibOderFromActiveTable.m_transmit ))
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_orderType   %s' %(now,ibOderFromActiveTable.m_orderType  ))
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_totalQuantity   %s' %(now,ibOderFromActiveTable.m_totalQuantity ))
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_allOrNone  %s' %(now,ibOderFromActiveTable.m_allOrNone ))
-                print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_tif   %s' %(now,(ibOderFromActiveTable.m_tif )))
-        else:
-            order=self.__createOrder(datetime=now,status='GENERATED',FilledQuantitiy=0,avgFillPrice=0,
-                      openOrderYesNo=True,
-                      ibContract=ibContract,ibOrder=ibOrder)
-            self.__registerOrder(order,raison='ACTIVE')
-            self.__initialPositions.append(order)
+            ### code bellow not compatibe with msg format, kept it here for historical raison
+            print ('%s[MyIbBroker_last __openOrderHandler] ORDER STATUS RECEIVED from IB  '%(now,))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_status    : %s' %(now,msg.OrderState.m_status ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_commission    : %s' %(now,ibOrderState.m_commission ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_warningText    : %s' %(now,ibOrderState.m_warningText ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_commissionCurrency    : %s' %(now,ibOrderState.m_commissionCurrency ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_minCommission    : %s' %(now,ibOrderState.m_minCommission ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_maxCommission    : %s' %(now,ibOrderState.m_maxCommission ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_equityWithLoan    : %s' %(now,ibOrderState.m_equityWithLoan ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_maintMargin    : %s' %(now,ibOrderState.m_maintMargin ))
+            print ('%s[MyIbBroker_last __openOrderHandler] ibOrderState.m_initMargin    : %s' %(now,ibOrderState.m_initMargin ))
+            """
             
+        try:
+            ibOderFromActiveTable = self.__getActiveOrder(msg.order.m_orderId)
+            if isinstance(ibOderFromActiveTable,pd.Series):
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __openOrderHandler] Open Order in existing in Active Order TABLE'%(now,))
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_orderId: %s' %(now,ibOderFromActiveTable.m_orderId)) 
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_clientId  : %s' %(now,ibOderFromActiveTable.m_clientId  )) 
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_action : %s' %(now,ibOderFromActiveTable.m_action )) 
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_lmtPrice : %s' %(now,ibOderFromActiveTable.m_lmtPrice )) 
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_auxPrice: %s' %(now,ibOderFromActiveTable.m_auxPrice)) 
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_tif  %s' %(now,ibOderFromActiveTable.m_tif ))
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_transmit  %s' %(now,ibOderFromActiveTable.m_transmit ))
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_orderType   %s' %(now,ibOderFromActiveTable.m_orderType  ))
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_totalQuantity   %s' %(now,ibOderFromActiveTable.m_totalQuantity ))
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_allOrNone  %s' %(now,ibOderFromActiveTable.m_allOrNone ))
+                    print ('%s[MyIbBroker_last __openOrderHandler] ibOrder.m_tif   %s' %(now,(ibOderFromActiveTable.m_tif )))
+                    print ('%s[MyIbBroker_last __openOrderHandler] END*********__openOrderHandler*******************'%(now,))
+                     
+            else:
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __openOrderHandler] Problem Order: %s'%(now,ibOderFromActiveTable))
+                    print ('%s[MyIbBroker_last __openOrderHandler] END*********__openOrderHandler*******************'%(now,))
+
+                raise("[MyIbBroker_last __openOrderHandler] Problem Order") 
+        except Exception as e:
             if self.__debug:
-                print ('%s[MyIbBroker_last __openOrderHandler] Open Order Not in Active Order, Order registered in active order, Cancell it if not necessary anymore'%(now,))
-                print ('%s[MyIbBroker_last __openOrderHandler] %s' % (now,order))
-                print ('%s[MyIbBroker_last __openOrderHandler] %s' % (now,self.__activeOrders))
-                print ('%s[MyIbBroker_last __openOrderHandler] END********__openOrderHandler *****************' % (now,))
+                print (e)
+                print ('%s[MyIbBroker_last __openOrderHandler] Order not in Active Table - Adding it' %(now, ))
+                order=self.__createOrder(datetime=now,status="PRESUBMITTED",FilledQuantitiy=0,avgFillPrice=0,
+                          openOrderYesNo=True,
+                          ibContract=ibContract,ibOrder=ibOrder)
+                self.__registerOrder(order,raison="PRESUBMITTED" )
+                self.__initialPositions.append(order)
+                
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __openOrderHandler] Open Order Not in Active Order, Order registered in active order, Cancell it if not necessary anymore'%(now,))
+                    #print ('%s[MyIbBroker_last __openOrderHandler] %s' % (now,order))
+                    #print ('%s[MyIbBroker_last __openOrderHandler] %s' % (now,self.__activeOrders))
+                    print ('%s[MyIbBroker_last __openOrderHandler] END********__openOrderHandler *****************' % (now,))
          
 
 
@@ -549,8 +695,14 @@ class MyIbBroker_last():
         return
 
     def stop(self):
+        print("@@@@@@@@@@@@@@@@@@@@")
         self.__stop = True
         self.__ib.disconnect()
+        print("@@@@@@@@@@@@@@@@@@@@")
+        print("@@@ @ @@@@@@@@@@@@@@")
+        print("@@  @@ @@@@@@@@@@@@@@")
+        print("@@   @@@ @@@@@@@@@@@@@@")
+        print("@@@@@@@@@@@@@@@@@@@@")
 
     def join(self):
         pass
