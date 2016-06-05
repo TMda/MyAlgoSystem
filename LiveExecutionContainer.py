@@ -27,35 +27,46 @@ class LiveExecutionContainer(object):
     an event-driven backtest.
     """
 
-    def __init__(
-        self,strategyName, strategy,contract_list,fileOutput=None,
-        heartbeat=3
+    def __init__(self,
+        strategy_name,  # strategy name
+        strategy,       #Strategy class
+        contract_list,  #list of contract 
+        dir_Output      =   None,#path to the output directory
+        heartbeat       =   1 ,    #heartbeat
+        debug_data_feed =   False,
+        debug_broker    =   False,
     ):
         """
-        Initialises the backtest.
+        Initialises the Live Execution Container.
+        The container wrap a strategy a broker and a data feed for running
+        a live strategy.
 
         Parameters:
-     
-        barFeed - (Class) The list of symbol strings. Handles the market data feed.
-        IbBroker - (Class) Handles the orders/fills for trades and Keeps track of portfolio current and prior positions.
-        strategy - (Class) Generates signals based on market data.
+        strategy_name   - (string)strategy name
+        strategy        - (Class) Generates signals based on market data.
+        contract_list   - (list) of ib contract class used by the strategy
+        dir_Output      - (string) path to the output directory, where the strategy output its results
+        heartbeat       - (int) heartbeat        
+        debug_data_feed - (Bool) display debug message for data feed
+        debug_broker    - (Bool) display message for broker 
+
         """
-        
-        
-        self.strategyName=strategyName
-        self.contract_list=contract_list
-        self.barFeed  = None
-        self.IbBroker = None
-        self.strategy = None
-        self.strategy_input = strategy
-        self.events = queue.Queue()
-        
-        self.fileOutput=fileOutput
-        self.heartbeat=heartbeat
-        self.signals = 0
-        self.orders = 0
-        self.fills = 0
-        self.num_strats = 1
+        # associate input to class variables
+        self.strategy_name      =   strategy_name
+        self.strategy_input     =   strategy
+        self.contract_list      =   contract_list
+        if dir_Output   ==  None:
+            self.dir_Output      =    'output\\'
+        else:
+            self.dir_Output =   dir_Output
+        self.heartbeat          =   heartbeat
+        self.debug_data_feed    =   debug_data_feed
+        self.debug_broker       =   debug_broker
+        #initialize class varibale 
+        self.events             =   queue.Queue() # internal queue use to pass data bar between datafeed and strategy  
+        self.IbBroker           =   None # internal broker that pushes command to IB and manage execution
+        self.strategy           =   None # instancied strategy class 
+        self.signals            =   0    # num
        
         self._generate_trading_instances()
 
@@ -69,25 +80,38 @@ class LiveExecutionContainer(object):
         print(
             "Creating DataHandler, Strategy, Portfolio and ExecutionHandler"
         )
-        self.data_handler = LiveIBDataHandler(
-                contract=self.contract_list,
-                eventQueue=self.events,
-                host="localhost",port=7496,
-                warmupBars = 0, debug=False,
-                fileOutput=None)
+        self.data_handler   =   LiveIBDataHandler(
+                                    contract    =   self.contract_list,
+                                    eventQueue  =   self.events,
+                                    host        =   "localhost",
+                                    port        =   7496,
+                                    warmupBars  =   0, 
+                                    debug       =   self.debug_data_feed,
+                                    fileOutput  =   None)
                 
+        TheIbroker          =   MyIbBroker_last(
+                                    strategy_name   =   self.strategy_name,
+                                    host            =   "localhost", 
+                                    port            =   7496, 
+                                    debug           =   self.debug_broker , 
+                                    clientId        =   None, 
+                                    event           =   self.events )
         
-        self.strategy = self.strategy_input(
-                strategyName=self.strategyName,
-                Ibroker=MyIbBroker_last(strategy_name=self.strategyName,host="localhost", port=7496, debug=True, clientId = None, event=self.events ),
-                contract_list=self.contract_list
-        
-        
+        self.strategy       =   self.strategy_input(
+                                    strategy_name    =  self.strategy_name,
+                                    Ibroker          =  TheIbroker,
+                                    contract_list    =  self.contract_list,
         )
         
-        
-        
-        
+        try:
+            #print (type(self.strategy.IbBroker.getInitialOrders()))
+            #print (self.strategy.IbBroker.getInitialOrders())
+            #/function tested/
+            self.strategy.IbBroker.getInitialOrders().to_csv(self.dir_Output+"InitialOrders.csv")
+            self.output()
+        except Exception as e:
+            print (e)
+            print ("Live Excecution Container Error output initial performances")
  
     def _run_live(self):
         """
@@ -103,17 +127,16 @@ class LiveExecutionContainer(object):
             try:
 
 
-                fo = open("control_files\\runfile", "r+")
-                print("File open")
-                order=fo.read()
+                fo      =   open("control_files\\runfile", "r")
+                #print("File open")
+                order   =   fo.read()
                 fo.close()
 
-                print ("Control Order list: %s" %(order))
+                #print ("Control Order list: %s" %(order))
                 
-                print("file split")
                 if len(order) in [4,5]:
                     
-                    print ("Control Order received : %s" %(order))
+                    #print ("Control Order received : %s" %(order))
                     
                    
                     if order=='STOP':
@@ -132,6 +155,11 @@ class LiveExecutionContainer(object):
                 #raise("Problem")
                 #pass
             
+            try:
+                self.output()
+            except Exception as e:
+                print(e)
+                print("Problem outputting strategy performances")
             
 
             # Handle the events
@@ -144,7 +172,8 @@ class LiveExecutionContainer(object):
                     if event is not None:
                         if event.type == 'MARKET':
                             self.strategy.onBar(event.bar)
-                            #self.portfolio.update_timeindex(event)
+ 
+
 
                         elif event.type == 'SIGNAL':
                             self.signals += 1                            
@@ -177,9 +206,57 @@ class LiveExecutionContainer(object):
         print("Orders: %s" % self.orders)
         print("Fills: %s" % self.fills)
     """
+    
     def run(self):
         """
         Simulates the backtest and outputs portfolio performance.
         """
         self._run_live()
         #self._output_performance()
+    def output(self):
+        #self.portfolio.update_timeindex(event)
+        
+        
+        cash    =   self.strategy.IbBroker.getCash()
+        f       =   open(self.dir_Output+"cash","w")
+        f.write(str(cash))
+        f.close()
+        
+        #/ function tested/
+        #print("Active Positions: ")
+        #print (type(self.strategy.IbBroker.getActivePositions()))
+        #print (self.strategy.IbBroker.getActivePositions())
+        self.strategy.IbBroker.getActivePositions().to_csv(self.dir_Output+"ActivePositions.csv")
+        
+        #/Function to test in production
+#        print("Positions History: ")
+#        print (type(self.strategy.IbBroker.getPositionsHistory()))
+#        print (self.strategy.IbBroker.getPositionsHistory())
+        self.strategy.IbBroker.getPositionsHistory().to_csv(self.dir_Output+"PositionsHistory.csv")
+        
+        #/Function to test in production
+        #print("Active Orders: ")
+        #print (type(self.strategy.IbBroker.getActiveOrders()))
+        self.strategy.IbBroker.getActiveOrders().to_csv(self.dir_Output+"ActiveOrders.csv")
+
+        print("Filled Order: ")
+        print (type(self.strategy.IbBroker.getFilledOrders()))
+        print (self.strategy.IbBroker.getFilledOrders())
+        self.strategy.IbBroker.getFilledOrders().to_csv(self.dir_Output+"FilledOrders.csv")
+        
+        #/Function to test in production
+        #print("Order History: ")
+        #print (type(self.strategy.IbBroker.getOrdersHistory()))
+        #print (self.strategy.IbBroker.getOrdersHistory())
+        self.strategy.IbBroker.getOrdersHistory().to_csv(self.dir_Output+"OrdersHistory.csv")
+
+
+
+       
+
+        
+
+        
+
+        
+   

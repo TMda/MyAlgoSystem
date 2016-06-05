@@ -51,25 +51,25 @@ def createEsIndex(type_name=TYPE_NAME,delete=False):
                 
 
                 "properties": {
-                    "strategyName": {"type":"string","index":"not_analyzed","analyzer": "english"},
-                    "run_number":   {"type":"integer","index":"not_analyzed"    },
-                    "Contract":     {"type":"string","index":"not_analyzed","analyzer": "english" },
-                    "datetime":     {"type": "date","index": "not_analyzed" },
-                    "ibContract_m_symbol ":  {"type": "string","index": "not_analyzed"   ,"analyzer": "english" },
-                    "ibContract_m_secType  ":{"type": "string","index": "not_analyzed"         ,"analyzer": "english" },
-                    "ibContract_m_currency ":    {"type": "string","index": "not_analyzed","analyzer": "english" },
-                    "ibContract_m_exchange ":    {"type": "string","index": "not_analyzed","analyzer": "english" },
-                    "ibContract_m_multiplier ":    {"type": "string","index": "not_analyzed","analyzer": "english" },
-                    "ibContract_m_expiry  ":             {"type": "string","index": "not_analyzed"   ,"analyzer": "english" },
-                    "ibContract_m_strike ":        {"type": "float", "index": "not_analyzed"           },
-                    "ibContract_m_right  ":        {"type": "string","index": "not_analyzed"   ,"analyzer": "english" },
-                    "position":         {"type":"integer","index":"not_analyzed"   },
-                    "marketPrice":      {"type":"float", "index": "not_analyzed"  },
-                    "marketValue":      {"type":"float","index":"not_analyzed" },
-                    "averageCost":      {"type": "float","index":"not_analyzed"    },
-                    "unrealizedPNL":    {"type":"float","index": "not_analyzed"  },
-                    "realizedPNL":      {"type":"float","index": "not_analyzed"    },
-                    "accountName":      {"type": "string","index": "not_analyzed"},
+                    "strategy_name"             :   {"type": "string",  "index": "not_analyzed",     "analyzer": "english"},
+                    "run_number"                :   {"type": "integer", "index": "not_analyzed" },
+                    "contract_code"             :   {"type": "string",  "index": "not_analyzed",     "analyzer": "english" },
+                    "datetime"                  :   {"type": "date",    "index": "not_analyzed" },
+                    "ibContract_m_symbol"       :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "ibContract_m_secType"      :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "ibContract_m_currency"     :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "ibContract_m_exchange"     :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "ibContract_m_multiplier"   :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "ibContract_m_expiry"       :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "ibContract_m_strike"       :   {"type": "float",   "index": "not_analyzed" },
+                    "ibContract_m_right"        :   {"type": "string",  "index": "not_analyzed",    "analyzer": "english" },
+                    "position"                  :   {"type": "integer", "index": "not_analyzed" },
+                    "marketPrice"               :   {"type": "float",   "index": "not_analyzed" },
+                    "marketValue"               :   {"type": "float",   "index": "not_analyzed" },
+                    "averageCost"               :   {"type": "float",   "index": "not_analyzed" },
+                    "unrealizedPNL"             :   {"type": "float",   "index": "not_analyzed" },
+                    "realizedPNL"               :   {"type": "float",   "index": "not_analyzed" },
+                    "accountName"               :   {"type": "string",  "index": "not_analyzed" },
 
 
 
@@ -84,7 +84,7 @@ def createEsIndex(type_name=TYPE_NAME,delete=False):
     res = es.indices.create(index = INDEX_NAME, body = request_body)
     print(" response: '%s'" % (res))
 #%%
-def loadIntoEsIndex(portfolio_dic,strategy_name=None,run_number=None,Contract=None,type_name=TYPE_NAME,index_name = INDEX_NAME,id=None):
+def loadIntoEsIndex(portfolio_dic,type_name=TYPE_NAME,index_name = INDEX_NAME,id=None):
     #%%
     ES_HOST = {"host" : "localhost", "port" : 9200}
     INDEX_NAME = index_name
@@ -93,11 +93,6 @@ def loadIntoEsIndex(portfolio_dic,strategy_name=None,run_number=None,Contract=No
         return
 
     #
-    import datetime
-    portfolio_dic['datetime']    =   datetime.datetime.now()
-    portfolio_dic['strategyName']=   strategy_name
-    portfolio_dic['run_number']  =   run_number
-    portfolio_dic['Contract']    =   Contract
 
     from elasticsearch import Elasticsearch
     import datetime
@@ -109,7 +104,7 @@ def loadIntoEsIndex(portfolio_dic,strategy_name=None,run_number=None,Contract=No
     print()
     try:
         res = es.index(index=INDEX_NAME, doc_type=TYPE_NAME, body=portfolio_dic)
-        print(res['created'])
+        print("Portfolio position loaded into ES: "%(res['created']))
     except Exception as e:
         print(e)
     

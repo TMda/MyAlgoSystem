@@ -1,0 +1,3 @@
+,datetime,contract_code,ibContract_m_symbol,ibContract_m_secType,ibContract_m_currency,ibContract_m_exchange,ibContract_m_multiplier,ibContract_m_expiry,ibContract_m_strike,ibContract_m_right,position,marketPrice,marketValue,averageCost,unrealizedPNL,realizedPNL,accountName,strategy_name,run_number
+0,2016-06-05 12:45:43.998,AAPL:STK:0:0.0:None,AAPL,STK,USD,,,,0.0,0,-480.0,97.91999815,-47001.6,97.8592898,-29.14,0.0,DU213041,MyStrategy,69.0
+1,2016-06-05 12:45:44.045,EUR:CASH:0:0.0:None,EUR,CASH,USD,,,,0.0,0,-5.0,1.13680005,-5.68,0.91886,-1.09,0.0,DU213041,MyStrategy,69.0

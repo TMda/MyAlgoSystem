@@ -24,93 +24,113 @@ from performance import create_sharpe_ratio, create_drawdowns
 #%%
 
 class MyIbBroker_last():
-    def __init__(self, host="localhost", port=7496, 
-                debug=False, clientId = None, event=None,strategy_name='ANO'):
+    def __init__(self, host             =   "localhost", 
+                       port             =   7496, 
+                       debug            =   False,      #Display debug messages
+                       clientId         =   None,       #Client ID for the broker
+                       event            =   None,       #Event Queue
+                       strategy_name    =   'ANO'):     #Strategy Name
 
-        self.__stop=False
+        self.__stop         =   False
 
-        if debug == False:
-            self.__debug = False
+        if debug            ==  False:
+            self.__debug    =   False
         else:
-            self.__debug = True
+            self.__debug    =   True
 
  
         ###Connection to IB
-        if event !=None:
-            self.event = event
+        if event != None:
+            self.event  =   event
         else:
-            self.event = queue.Queue()
+            self.event  =   queue.Queue()
         # Interactive Broker Connection
-        self.strategy_name=strategy_name
-        self.connectionTime=None
-        self.serverVersion=None
-        self.clientId=clientId
-        self.host=host
-        self.port=port
-        self.clienId=clientId
+        self.strategy_name      =   strategy_name
+        self.connectionTime     =   None
+        self.serverVersion      =   None
+        self.clientId           =   clientId
+        self.host               =   host
+        self.port               =   port
+        self.clienId            =   clientId
         self.__IbConnect() 
 
         # Order Management
-        orderColumn=[
-            'datetime',
-            'status',
-            'FilledQuantitiy','avgFillPrice',
-            'ibContract_m_symbol','ibContract_m_secType',
-            'ibContract_m_currency','ibContract_m_exchange',
-            'ibContract_m_multiplier','ibContract_m_expiry',
-            'ibContract_m_strike','ibContract_m_right',
-            'ibOrder_m_orderId','ibOrder_m_clientId',
-            'ibOrder_m_permid','ibOrder_m_action',
-            'ibOrder_m_lmtPrice','ibOrder_m_auxPrice',
-            'ibOrder_m_tif','ibOrder_m_transmit',
-            'ibOrder_m_orderType','ibOrder_m_totalQuantity',
-            'ibOrder_m_parentId','ibOrder_m_trailStopPrice',
-            'ibOrder_m_trailingPercent',
-            'ibOrder_m_allOrNone','ibOrder_m_tif','openOrderYesNo',]
-        self.__activeOrders     =   pd.DataFrame(columns=orderColumn,)  #Order not yet fully or partially filled
-        self.__ordersHistory    =   pd.DataFrame(columns=orderColumn) #keep history of order life
-        self.__ordersFilled     =   pd.DataFrame(columns=orderColumn) #keep history of Filled order
+        orderColumn =   [
+            'datetime'                  ,   'status',
+            'contract_code'             ,   'FilledQuantitiy',   
+            'avgFillPrice'              ,   'ibContract_m_symbol',   
+            'ibContract_m_secType'      ,
+            'ibContract_m_currency'     ,   'ibContract_m_exchange',
+            'ibContract_m_multiplier'   ,   'ibContract_m_expiry',
+            'ibContract_m_strike'       ,   'ibContract_m_right',
+            'ibOrder_m_orderId'         ,   'ibOrder_m_clientId',
+            'ibOrder_m_permid'          ,   'ibOrder_m_action',
+            'ibOrder_m_lmtPrice'        ,   'ibOrder_m_auxPrice',
+            'ibOrder_m_tif'             ,   'ibOrder_m_transmit',
+            'ibOrder_m_orderType'       ,   'ibOrder_m_totalQuantity',
+            'ibOrder_m_parentId'        ,   'ibOrder_m_trailStopPrice',
+            'ibOrder_m_trailingPercent' ,   'ibOrder_m_allOrNone',
+            'remaining'                 ,   'lastFillPrice',
+            'openOrderYesNo',
+            ]
+        self.__initialOrders            =   pd.DataFrame(   columns    =   orderColumn    )
+        self.__activeOrders             =   pd.DataFrame(   columns    =   orderColumn  ) #Order not yet fully or partially filled
+        self.__ordersHistory            =   pd.DataFrame(   columns    =   orderColumn  )  #keep history of order life
+        self.__ordersFilled             =   pd.DataFrame(   columns    =   orderColumn  )  #keep history of Filled order
         
                      
         #Position Management
         #2016-02-04 11:17:10[IB LiveBroker __portfolioHandler] <updatePortfolio contract=<ib.ext.Contract.Contract object at 0x00000000088E2FD0>, position=300, marketPrice=0.31, marketValue=9300.0, averageCost=31.2674, unrealizedPNL=-80.22, realizedPNL=0.0, accountName=DU213041>
         activePositionColumn=[
-            'datetime',
-            'ibContract_m_symbol','ibContract_m_secType',
-            'ibContract_m_currency','ibContract_m_exchange',
-            'ibContract_m_multiplier','ibContract_m_expiry' ,
-            'ibContract_m_strike','ibContract_m_right',
-            'position','marketPrice'
-            'marketValue','averageCost','unrealizedPNL','realizedPNL','accountName']
-        self.__initialPositions =   []
-        self.__activePositions  =   pd.DataFrame(columns=activePositionColumn) #contract,position, market value
+            'datetime'                  ,   'contract_code',
+            'ibContract_m_symbol'       ,   'ibContract_m_secType',
+            'ibContract_m_currency'     ,   'ibContract_m_exchange',
+            'ibContract_m_multiplier'   ,   'ibContract_m_expiry' ,
+            'ibContract_m_strike'       ,   'ibContract_m_right',
+            'position'                  ,   'marketPrice',
+            'marketValue'               ,   'averageCost',
+            'unrealizedPNL'             ,   'realizedPNL',
+            'accountName'               ,   'strategy_name',   
+            'run_number'                ,         
+            ]
+        self.__activePositions      =   pd.DataFrame(   columns    =   activePositionColumn    ) #contract,position, market value
         #self.__detailedActivePositions = {}#entry price, average price etc...
-        self.__positionsHistory =   pd.DataFrame(columns=activePositionColumn)
+        self.__positionsHistory     =   pd.DataFrame(   columns    =   activePositionColumn    )
         
         #Order Execution Management 
         execuColumn=['datetime'
-                'ibExecution_m_orderId','ibExecution_m_execId','ibExecution_m_acctNumber',
-                'ibExecution_m_clientId','ibExecution_m_liquidation','ibExecution_m_permId',
-                'ibExecution_m_price','ibExecution_m_evMultiplier''ibExecution_m_avgPrice' ,'ibExecution_m_evRule',  
-                'ibExecution_m_cumQty','ibExecution_m_shares','ibOrder_m_auxPrice','ibExecution_m_side',
-                'ibExecution_m_time','ibExecution_m_exchange' ]
-        self.__executionsHistory =   pd.DataFrame(columns=execuColumn )
+                'ibExecution_m_orderId'     ,   'ibExecution_m_execId',
+                'ibExecution_m_acctNumber'  ,   'ibExecution_m_clientId',
+                'ibExecution_m_liquidation' ,   'ibExecution_m_permId',
+                'ibExecution_m_price'       ,   'ibExecution_m_evMultiplier',
+                'ibExecution_m_avgPrice'    ,   'ibExecution_m_evRule',  
+                'ibExecution_m_cumQty'      ,   'ibExecution_m_shares',
+                'ibOrder_m_auxPrice'        ,   'ibExecution_m_side',
+                'ibExecution_m_time'        ,   'ibExecution_m_exchange' 
+                ]
+        self.__executionsHistory    =   pd.DataFrame(  columns   =   execuColumn   )
 
         #Cash Management
-        self.__cash = 0
-        self.__nextOrderId = 0
+        self.__cash                 =   0
+        
+        #Next order id 
+        self.__nextOrderId          =   0
         
         #Get the run number that will differentiate every strategy run in ES DB
-        self.run_number =None
+        self.run_number             =   None
         self.getRunNumber()
+        
         #Request initial account balance
         self.refreshAccountBalance()
+        
         # Request current open order in the system
         self.refreshOpenOrders()
+        
         # Request all positions outstanding
         self.__ib.reqPositions()
+        
         #give ib time to get back to us
-        time.sleep(5)
+        time.sleep(2)
             
     def __IbConnect(self):
         if self.clientId == None:
@@ -125,13 +145,13 @@ class MyIbBroker_last():
         #register all the callback handlers
         #self.__ib.registerAll(self.__debugHandler)
         self.__ib.registerAll(self.__debugHandler)
-        self.__ib.register(self.__accountHandler,'UpdateAccountValue')
-        self.__ib.register(self.__portfolioHandler,'UpdatePortfolio')
-        self.__ib.register(self.__openOrderHandler, 'OpenOrder')
-        #self.__ib.register(self.__positionHandler, 'Position')
-        self.__ib.register(self.__disconnectHandler,'ConnectionClosed')
-        self.__ib.register(self.__nextIdHandler,'NextValidId')
-        self.__ib.register(self.__orderStatusHandler,'OrderStatus')
+        self.__ib.register(self.__accountHandler,       'UpdateAccountValue')
+        self.__ib.register(self.__portfolioHandler,     'UpdatePortfolio')
+        self.__ib.register(self.__openOrderHandler,     'OpenOrder')
+        #self.__ib.register(self.__positionHandler,     'Position')
+        self.__ib.register(self.__disconnectHandler,    'ConnectionClosed')
+        self.__ib.register(self.__nextIdHandler,        'NextValidId')
+        self.__ib.register(self.__orderStatusHandler,   'OrderStatus')
         self.__ib.connect()
         if self.__ib.isConnected():
             self.connectionTime=self.__ib.reqCurrentTime()
@@ -144,7 +164,9 @@ class MyIbBroker_last():
                 
         else:
             print('[MyIbBroker_last] Connection to IB Error')
+            raise('[MyIbBroker_last] Connection to IB Error')
         ### End Connection to IB 
+        return
     def getRunNumber(self):
         if self.__debug:
             now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
@@ -196,106 +218,92 @@ class MyIbBroker_last():
         except  :
             #print(Exception)
             raise("[MyIbBroker_last __getRunNumber]File control_files/run_number must exist")
-
+    # BEGIN FEEDBACK HANDLER
     def __accountHandler(self,msg):
         #FYI this is not necessarily USD - probably AUD for me as it's the base currency so if you're buying international stocks need to keep this in mind
         #self.__cash = round(balance.getUSDAvailable(), 2)
         if msg.key == 'TotalCashBalance' and msg.currency == 'USD':
             self.__cash = round(float(msg.value))
-        
     def __disconnectHandler(self,msg):
         self.__ib.reconnect()
-
-    #prints all messages from IB API
     def __debugHandler(self,msg):
         
         if self.__debug: 
             #print (msg)
             return
-
     def __nextIdHandler(self,msg):
         self.__nextOrderId = msg.orderId
-
-    '''
-    #build position array from ib object (NOTE: This isn't a pyalgotrade position it's an array with enough details hopefully to build one)
-    def build_position_from_open_position(self,msg):
-        #return pyalgotrade.strategy.position.LongPosition(self., instrument, stopPrice, None, quantity, goodTillCanceled, allOrNone)
-        return {
-            'stock': 'STW',
-            'shortLong': 'long',
-            'quantity': 500,
-            'price': 31.63
-        }
-        pass
-
-    #creates positions and hopefully tells the strategy on startup
-    #great for error recovery
-    def __positionHandler(self,msg):
-        self.__initialPositions.append(self.build_position_from_open_position(msg))
-        print "GOT POSITIONS"
-
-    def getInitialPositions(self):
-        return self.__initialPositions
-
-    '''
-
-    #listen for orders to be fulfilled or cancelled
+        return
     def __createOrder(self,
-        datetime=None,
+        datetime=datetime.datetime.now(),
         status=None,
         FilledQuantitiy=None,
         avgFillPrice=None,
         openOrderYesNo=None,
-        ibContract=None,ibOrder=None):
+        ibContract=None,ibOrder=None,
+        remaining=None,
+        lastFillPrice=None):
         """
         Create an order Pandas Series  that can be inserted into the ActiveOrder or orderHistory PD dataframes
         Return - PD Series
         """
         assert(ibOrder.m_orderId is not None),'[__createOrder] Order must have ibOrder_m_orderId not null'
         dico={
-          'datetime':datetime,
-          'status': status, 
-          'FilledQuantitiy':FilledQuantitiy, 
-          'avgFillPrice':avgFillPrice,
-          'ibContract_m_symbol':ibContract.m_symbol, 
-          'ibContract_m_secType':ibContract.m_secType, 
-          'ibContract_m_currency':ibContract.m_currency, 
-          'ibContract_m_exchange':ibContract.m_exchange, 
-          'ibContract_m_multiplier':ibContract.m_multiplier, 
-          'ibContract_m_expiry':ibContract.m_expiry, 
-          'ibContract_m_strike':ibContract.m_strike, 
-          'ibContract_m_right':ibContract.m_right, 
-          'ibOrder_m_orderId':ibOrder.m_orderId, 
-          'ibOrder_m_clientId':ibOrder.m_clientId, 
-          'ibOrder_m_permid':None, 
-          'ibOrder_m_action':ibOrder.m_action, 
-          'ibOrder_m_lmtPrice':ibOrder.m_lmtPrice, 
-          'ibOrder_m_auxPrice':ibOrder.m_auxPrice, 
-          'ibOrder_m_tif':ibOrder.m_tif, 
-          'ibOrder_m_transmit':ibOrder.m_transmit, 
-          'ibOrder_m_orderType':ibOrder.m_orderType, 
-          'ibOrder_m_totalQuantity':ibOrder.m_totalQuantity, 
-          'ibOrder_m_parentId':ibOrder.m_parentId, 
-          'ibOrder_m_trailStopPrice':ibOrder.m_trailStopPrice, 
-          'ibOrder_m_trailingPercent':ibOrder.m_trailingPercent, 
-          'ibOrder_m_allOrNone':ibOrder.m_allOrNone, 
-          'ibOrder_m_tif':ibOrder.m_tif, 
-          'openOrderYesNo':openOrderYesNo,
+          'datetime'                :   datetime,
+          'status'                  :   status,
+          'contract_code'           :   self.buildContractRepresentation(ibContract),
+          'FilledQuantitiy'         :   FilledQuantitiy, 
+          'avgFillPrice'            :   avgFillPrice,
+          'ibContract_m_symbol'     :   ibContract.m_symbol, 
+          'ibContract_m_secType'    :   ibContract.m_secType, 
+          'ibContract_m_currency'   :   ibContract.m_currency, 
+          'ibContract_m_exchange'   :   ibContract.m_exchange, 
+          'ibContract_m_multiplier' :   ibContract.m_multiplier, 
+          'ibContract_m_expiry'     :   ibContract.m_expiry, 
+          'ibContract_m_strike'     :   ibContract.m_strike, 
+          'ibContract_m_right'      :   ibContract.m_right, 
+          'ibOrder_m_orderId'       :   ibOrder.m_orderId, 
+          'ibOrder_m_clientId'      :   ibOrder.m_clientId, 
+          'ibOrder_m_permid'        :   None, 
+          'ibOrder_m_action'        :   ibOrder.m_action, 
+          'ibOrder_m_lmtPrice'      :   ibOrder.m_lmtPrice, 
+          'ibOrder_m_auxPrice'      :   ibOrder.m_auxPrice, 
+          'ibOrder_m_tif'           :   ibOrder.m_tif, 
+          'ibOrder_m_transmit'      :   ibOrder.m_transmit, 
+          'ibOrder_m_orderType'     :   ibOrder.m_orderType, 
+          'ibOrder_m_totalQuantity' :   ibOrder.m_totalQuantity, 
+          'ibOrder_m_parentId'      :   ibOrder.m_parentId, 
+          'ibOrder_m_trailStopPrice':   ibOrder.m_trailStopPrice, 
+          'ibOrder_m_trailingPercent':  ibOrder.m_trailingPercent, 
+          'ibOrder_m_allOrNone'     :   ibOrder.m_allOrNone, 
+          'remaining'               :   remaining,
+          'lastFillPrice'           :   lastFillPrice,
+          'openOrderYesNo'          :   openOrderYesNo,
         }  
         return pd.Series(dico)
         
+         
     def __registerOrder(self, order,raison='GENERATED'):
         assert(type(order) is pd.Series)                ,'[_registerOrder] Order must be a pd.Series'
         assert(order['ibOrder_m_orderId'] is not None)  ,'[_registerOrder] Order must have ibOrder_m_orderId not null'
         #need to make sure order doesn't overwrite as we may lose information
         assert (order['ibOrder_m_orderId'] not in self.__activeOrders.index),'[_registerOrder]Order ID already exist in __activeOrders table'
-        order['status'] = raison
-        order['datetime']= dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
+        now                 =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        order['status']     =   raison
+        order['datetime']   = now
         #order['openOrderYesNo']=False
         self.__activeOrders.loc[order['ibOrder_m_orderId']] = order
-        #self.__ordersHistory=self.__ordersHistory.append(pd.Series(order),ignore_index=False)
-        
-
+        self.__ordersHistory=self.__ordersHistory.append(order, ignore_index =   True)
+        if self.__debug:
+            print ('%s[MyIbBroker_last __registerOrder] BEGIN********__portfolioHandler *****************' % (now,))
+            print ('%s[MyIbBroker_last __registerOrder] Order to register:' % (now,))
+            print ('%s[MyIbBroker_last __registerOrder] %s' % (now,order))
+            print ('%s[MyIbBroker_last __registerOrder] Active Order table:' % (now,))
+            print ('%s[MyIbBroker_last __registerOrder] %s' % (now,self.__activeOrders))
+            print ('%s[MyIbBroker_last __registerOrder] History Order table:' % (now,))
+            print ('%s[MyIbBroker_last __registerOrder] %s' % (now,self.__ordersHistory))
+            print ('%s[MyIbBroker_last __registerOrder] BEGIN********__portfolioHandler *****************' % (now,)) 
+        return
     def __unregisterOrder(self, order,raison):
         assert(type(order) is pd.Series) ,'[_unregisterOrder] Order must be a pd.Series'
         assert(order['ibOrder_m_orderId'] in self.__activeOrders.index),'[_unregisterOrder] Order to unregister does not exist in __activeOrders table'
@@ -307,8 +315,6 @@ class MyIbBroker_last():
         #self.__ordersHistory=self.__ordersHistory.append(pd.Series(order),ignore_index=True)
         if raison=='FILLED':
             self.__ordersFilled=self.__ordersFilled.loc[order['ibOrder_m_orderId']] = order
-            
-
     def __updateActiveOrder(self,order):
         """
         Input Pd Series Order
@@ -319,15 +325,13 @@ class MyIbBroker_last():
         order['datetime']= dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
         self.__activeOrders.loc[order['ibOrder_m_orderId']]=order
         #self.__ordersHistory=self.__ordersHistory.append(pd.Series(order),ignore_index=True)
-       
+        return
     def __getActiveOrder(self,orderId):
         """
         return a pd Series, that can be used as a dictionary
         """
         #assert(orderId is int),"__getActiveOrder order ID must be integer"
         return self.__activeOrders.loc[orderId] 
-
-
     def __createExecution(self,msg):
         """
         Return an Execution details pandas Series that can be inserted in __executionsHistory DataFrame
@@ -357,9 +361,6 @@ class MyIbBroker_last():
 
             }
         return pd.Series(rxDict)
-        
-        
-        
     def __orderStatusHandler(self,msg):
         """
         Feedback handler managing OrderStatus Messages
@@ -392,9 +393,13 @@ class MyIbBroker_last():
         
        
         if msg.status == 'Filled' and order['status'] != 'FILLED':
-            
-            order['avgFillPrice']=msg.avgFillPrice
-            order['FilledQuantitiy']=abs(msg.filled)
+            order['status']         =   'FILLED'
+            order['avgFillPrice']   =   msg.avgFillPrice
+            order['FilledQuantitiy']=   abs(msg.filled)
+            order['remaining']      =   abs(msg.remaining)
+            order['lastFillPrice']  =   msg.lastFillPrice
+            order['openOrderYesNo'] =   False
+
             self._unregisterOrder(order,raison='FILLED')
             if self.__debug:
                 print ('%s[MyIbBroker_last __orderStatusHandler] FILLED Order - active Order removed from  __activeOrder table :' % (now,))
@@ -404,10 +409,12 @@ class MyIbBroker_last():
             
             #order.setState(broker.Order.State.FILLED)
         elif msg.status == 'Submitted' and msg.filled > 0:
-            order['status'] = 'PARTIALLY_FILLED'
-            order['avgFillPrice']=msg.avgFillPrice
-            order['FilledQuantitiy']= abs(msg.filled)
-            order['openOrderYesNo']=True
+            order['status']         =   'PARTIALLY_FILLED'
+            order['avgFillPrice']   =   msg.avgFillPrice
+            order['FilledQuantitiy']=   abs(msg.filled)
+            order['remaining']      =   abs(msg.remaining)
+            order['lastFillPrice']  =   msg.lastFillPrice
+            order['openOrderYesNo'] =   True
             self.__updateActiveOrder(order)
             
             if self.__debug:
@@ -420,7 +427,13 @@ class MyIbBroker_last():
             #if order.getState() != broker.Order.State.PARTIALLY_FILLED:
             #    order.setState(broker.Order.State.PARTIALLY_FILLED)
         elif msg.status == 'Cancelled' and order['status'] != 'CANCELED':
-            
+            order['status']         =   'CANCELED'
+            order['avgFillPrice']   =   msg.avgFillPrice
+            order['FilledQuantitiy']=   abs(msg.filled)
+            order['remaining']      =   abs(msg.remaining)
+            order['lastFillPrice']  =   msg.lastFillPrice
+            order['openOrderYesNo'] =   False
+           
             #order.setState(broker.Order.State.CANCELED)
             self._unregisterOrder(order,raison='CANCELLED')
             if self.__debug:
@@ -444,11 +457,11 @@ class MyIbBroker_last():
                     print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
                     #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
                     print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
-            
-
-
-    #get portfolio messages - stock, price, purchase price etc
     def __portfolioHandler(self,msg):
+        """
+        get portfolio messages - stock, price, purchase price etc
+
+        """
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         #<updatePortfolio contract=<ib.ext.Contract.Contract object at 0x000000000BB83048>, position=-5, 
         #marketPrice=1.13680005, marketValue=-5.68, averageCost=0.91886, unrealizedPNL=-1.09, 
@@ -461,13 +474,14 @@ class MyIbBroker_last():
             print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
 
         
-        ibContract=msg.contract
-        
+        ibContract      =   msg.contract
+        contract_code   =   self.buildContractRepresentation(ibContract)
+
         
         
         
         portDict={
-        'datetime'                  :   now,
+        'datetime'                  :   datetime.datetime.now(),
         'ibContract_m_symbol'       :   ibContract.m_symbol,
         'ibContract_m_secType'      :   ibContract.m_secType,
         'ibContract_m_currency'     :   ibContract.m_currency,
@@ -482,11 +496,16 @@ class MyIbBroker_last():
         'averageCost'   :   msg.averageCost,
         'unrealizedPNL' :   msg.unrealizedPNL,
         'realizedPNL'   :   msg.realizedPNL,
-        'accountName'   :   msg.accountName,}
+        'accountName'   :   msg.accountName,
+        'strategy_name' :   self.strategy_name,
+        'run_number'    :   self.run_number,
+        'contract_code' :   contract_code,
+     
+        }
         if self.__debug:
+            print ('%s[MyIbBroker_last __portfolioHandler]Contract Code:  %s' %(now,contract_code))        
             print ('%s[MyIbBroker_last __portfolioHandler]Existing Position Received from IB: ' %(now,))
             print ('%s[MyIbBroker_last __portfolioHandler] %s  ' %(now,portDict))
-        
         self.__positionsHistory=self.__positionsHistory.append(pd.Series(portDict),ignore_index=True)
         if self.__debug:
             print ('%s[MyIbBroker_last __portfolioHandler] Position Received from IB added POSITION HISTORY:  ' %(now,))
@@ -495,11 +514,8 @@ class MyIbBroker_last():
             print ('%s[MyIbBroker_last __portfolioHandler]................................................'%(now,))
 
 
-        co    =   ("%s-%s-%s-%s-%s" %(ibContract.m_symbol,ibContract.m_secType,ibContract.m_right,ibContract.m_strike,ibContract.m_expiry )).strip()
-        if self.__debug:
-            print ('%s[MyIbBroker_last __portfolioHandler] Contract :  %s' %(now,co))
         try:
-            loadIntoEsIndex(portDict,strategy_name=self.strategy_name,run_number  = self.run_number,Contract=co)            
+            loadIntoEsIndex(portDict)            
             if self.__debug:
                 print ('%s[MyIbBroker_last __portfolioHandler] Position Received from IB added into ELASTIC SEARCH:  ' %(now,))
         except Exception as e:
@@ -577,8 +593,32 @@ class MyIbBroker_last():
                     #self.__positionsHistory.to_csv('positionsHistory.csv')
                     print ('%s[MyIbBroker_last __portfolioHandler] END********__portfolioHandler *****************' % (now,))
                 return
-    
+        return
     def __openOrderHandler(self,msg):
+        '''
+        #build position array from ib object (NOTE: This isn't a pyalgotrade position it's an array with enough details hopefully to build one)
+        def build_position_from_open_position(self,msg):
+            #return pyalgotrade.strategy.position.LongPosition(self., instrument, stopPrice, None, quantity, goodTillCanceled, allOrNone)
+            return {
+                'stock': 'STW',
+                'shortLong': 'long',
+                'quantity': 500,
+                'price': 31.63
+            }
+            pass
+
+        #creates positions and hopefully tells the strategy on startup
+        #great for error recovery
+        def __positionHandler(self,msg):
+            self.__initialPositions.append(self.build_position_from_open_position(msg))
+            print "GOT POSITIONS"
+
+        def getInitialPositions(self):
+            return self.__initialPositions
+
+        '''
+    #listen for orders to be fulfilled or cancelled
+
         #Do nothing now but might want to use this to pick up open orders at start (eg in case of shutdown or crash)
         #note if you want to test this make sure you actually have an open order otherwise it's never called
         #Remember this is called once per open order so if you have 3 open orders it's called 3 times
@@ -662,38 +702,36 @@ class MyIbBroker_last():
             if self.__debug:
                 print (e)
                 print ('%s[MyIbBroker_last __openOrderHandler] Order not in Active Table - Adding it' %(now, ))
-                order=self.__createOrder(datetime=now,status="PRESUBMITTED",FilledQuantitiy=0,avgFillPrice=0,
-                          openOrderYesNo=True,
-                          ibContract=ibContract,ibOrder=ibOrder)
-                self.__registerOrder(order,raison="PRESUBMITTED" )
-                self.__initialPositions.append(order)
+                order=self.__createOrder(
+                    datetime        =   now,
+                    status          =   "PRESUBMITTED",
+                    ibContract      =   ibContract,
+                    ibOrder         =   ibOrder,
+                    openOrderYesNo  =   True,
+                    )
+                self.__registerOrder(   order,  raison  =   "PRESUBMITTED" )
+                self.__initialOrders.loc[order['ibOrder_m_orderId']] = order
+                
                 
                 if self.__debug:
                     print ('%s[MyIbBroker_last __openOrderHandler] Open Order Not in Active Order, Order registered in active order, Cancell it if not necessary anymore'%(now,))
                     #print ('%s[MyIbBroker_last __openOrderHandler] %s' % (now,order))
                     #print ('%s[MyIbBroker_last __openOrderHandler] %s' % (now,self.__activeOrders))
                     print ('%s[MyIbBroker_last __openOrderHandler] END********__openOrderHandler *****************' % (now,))
-         
-
-
-    #subscribes for regular account balances which are sent to portfolio and account handlers
     def refreshAccountBalance(self):
+        """
+        subscribes for regular account balances which are sent to portfolio and account handlers
+        """
         self.__ib.reqAccountUpdates(1,'')
-        
-
-
     def refreshOpenOrders(self):
         self.__ib.reqAllOpenOrders()
-
-
     def _startTradeMonitor(self):
         return
-
+    # END FEEDBACK HANDLER
 
     # BEGIN observer.Subject interface
     def start(self):
         return
-
     def stop(self):
         print("@@@@@@@@@@@@@@@@@@@@")
         self.__stop = True
@@ -703,13 +741,10 @@ class MyIbBroker_last():
         print("@@  @@ @@@@@@@@@@@@@@")
         print("@@   @@@ @@@@@@@@@@@@@@")
         print("@@@@@@@@@@@@@@@@@@@@")
-
     def join(self):
         pass
-
     def eof(self):
         return self.__stop
-
     def dispatch(self):
         """
         # Switch orders from SUBMITTED to ACCEPTED.
@@ -720,43 +755,40 @@ class MyIbBroker_last():
                 self.notifyOrderEvent(broker.OrderEvent(order, broker.OrderEvent.Type.ACCEPTED, None))
         """
         return
-
     def peekDateTime(self):
         # Return None since this is a realtime subject.
         return None
-
     # END observer.Subject interface
 
     # BEGIN broker.Broker interface
+    def getInstrumentTraits(self):   #HISTORICAL
+        return  self.__activePositions
+    def getShares(self, instrument): #HISTORICAL
+        return self.__activePositions
+    def getPositions(self):          #HISTORICAL
+        return self.__activePositions
+    def getDetailedPositions(self):  #HISTORICAL
+        return self.__activePositions
 
     def getCash(self, includeShort=True):
         return self.__cash
-
-    def getInstrumentTraits(self):
-        return  self.__activePositions
-
-    def getShares(self, instrument):
+    def getInitialOrders(self):
+        return self.__initialOrders
+    def getActivePositions(self):          
         return self.__activePositions
-
-    def getPositions(self):
-        return self.__activePositions
-
-    def getInitialPositions(self):
-        return self.__initialPositions
-        
     def getPositionsHistory(self):
-        return self.__positionsHistoryositions
-    
-    #positions is just stock and number of shares - detailed positions includes cost and p/l info
-    def getDetailedPositions(self):
-        return self.__activePositions
-
+        return self.__positionsHistory
     def getActiveOrders(self, instrument=None):
         return self.__activeOrders
-
+    def getFilledOrders(self):
+        return self.__ordersFilled
     def getOrdersHistory(self, instrument=None):
         return self.__ordersHistory
 
+    # BEGIN broker ORDER MAKING AND SUBMISSION 
+    def buildContractRepresentation(self,ibContract):
+    
+        return ("%s:%s:%s:%s:%s" %(ibContract.m_symbol,ibContract.m_secType,ibContract.m_right,ibContract.m_strike,ibContract.m_expiry )).strip()
     def makeStkContrcat(self,m_symbol,m_secType = 'STK',m_exchange = 'SMART',m_currency = 'USD'):
         from ib.ext.Contract import Contract
         newContract = Contract()
@@ -793,7 +825,6 @@ class MyIbBroker_last():
         newContract.m_exchange = m_exchange
         newContract.m_currency = m_currency
         return newContract
-        
     def makeOrder(self,
                  
                  m_action ,
@@ -840,8 +871,6 @@ class MyIbBroker_last():
         newOptOrder.m_allOrNone     = 0 #  boolean m_allOrNone	0 = no, 1 = yes
 
         return newOptOrder
-
-        
     def submitOrder(self, ibContract, ibOrder):
         #from ib.ext.Contract import Contract
         #assert(ibContract is Contract)
@@ -861,8 +890,7 @@ class MyIbBroker_last():
                 print ('%s[MyIbBroker_last submitOrder] %s' % (now,order))
                 print ('%s[MyIbBroker_last submitOrder] %s' % (now,self.__activeOrders))
                 print ('%s[MyIbBroker_last submitOrder] END********submitOrder *****************' % (now,))
-
-    def createMarketOrder(self, m_action, ibContract, m_totalQuantity, onClose=True):
+    def submitMarketOrder(self, m_action, ibContract, m_totalQuantity, onClose=True):
         assert (m_action in ['BUY','SELL']),'[createMarketOrder] m_action not either BUY or SELL'
         if onClose==False :
             m_tif='GTC'
@@ -884,8 +912,7 @@ class MyIbBroker_last():
         self.submitOrder(ibContract, ibOrder)
 
         return 
-
-    def createLimitOrder(self, m_action, ibContract, m_lmtPrice, m_totalQuantity,onClose=True):
+    def submitLimitOrder(self, m_action, ibContract, m_lmtPrice, m_totalQuantity,onClose=True):
         assert (m_action in ['BUY','SELL']),'[createMarketOrder] m_action not either BUY or SELL'
         if onClose==False :
             m_tif='GTC'
@@ -908,8 +935,7 @@ class MyIbBroker_last():
         self.submitOrder(ibContract, ibOrder)
 
         return  
-
-    def createStopOrder(self, m_action, ibContract, stopPrice, m_totalQuantity,onClose=True):
+    def submitStopOrder(self, m_action, ibContract, stopPrice, m_totalQuantity,onClose=True):
         assert (m_action in ['BUY','SELL']),'[createMarketOrder] m_action not either BUY or SELL'
         if onClose==False :
             m_tif='GTC'
@@ -932,8 +958,7 @@ class MyIbBroker_last():
 
 
         return  
-
-    def createStopLimitOrder(self, m_action, ibContract, stopPrice, m_lmtPrice, m_totalQuantity,onClose=True):
+    def submitStopLimitOrder(self, m_action, ibContract, stopPrice, m_lmtPrice, m_totalQuantity,onClose=True):
         if onClose==False :
             m_tif='GTC'
         else:
@@ -954,8 +979,7 @@ class MyIbBroker_last():
         ibOrder.m_allOrNone     =   0 #  boolean m_allOrNone	0 = no, 1 = yes
 
         self.submitOrder(ibContract, ibOrder)
-        
-    def trailingLimitStop(self,m_action,ibContract,limitPrice,trailingAmount,trailStopPrice,quantity,onClose=True):
+    def submittrailingLimitStop(self,m_action,ibContract,limitPrice,trailingAmount,trailStopPrice,quantity,onClose=True):
         
         if onClose==False :
             m_tif='GTC'
@@ -982,8 +1006,6 @@ class MyIbBroker_last():
         ibOrder.m_allOrNone     =   0 #  boolean m_allOrNone	0 = no, 1 = yes
 
         self.submitOrder(ibContract, ibOrder)
-    
-    
     def cancelOrder(self, order):
         assert(type(order) is pd.Series) ,'[cancelOrder] Order must be a pd.Series'
         assert(order['ibOrder_m_orderId'] in self.__activeOrders.index),'[cancelOrder] Order to unregister does not exist in __activeOrders table'
@@ -1008,7 +1030,6 @@ class MyIbBroker_last():
         # Notify that the order was canceled.
         self.notifyOrderEvent(broker.OrderEvent(order, broker.OrderEvent.Type.CANCELED, "User requested cancellation"))
         '''
-
     # END broker.Broker interface
 
 

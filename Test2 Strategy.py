@@ -29,47 +29,11 @@ from IbBroker import MyIbBroker
 from strategy import MyLiveStrategy
 from numpy import append 
 import time
-
-###########
-def makeForexContract(m_symbol,ContractMonth,m_secType="FUT",m_currency="USD",
-                      m_exchange="GLOBEX"):
-    from ib.ext.Contract import Contract
-    contract   =  Contract()
-    contract.m_symbol   = m_symbol
-    contract.m_secType  = m_secType
-    contract.m_currency = m_currency
-    contract.m_exchange = m_exchange
-    contract.m_lastTradeDateOrContractMonth = ContractMonth
-    return contract
-
-def makeStkContrcat(m_symbol,m_secType = 'STK',m_exchange = 'SMART',m_currency = 'USD'):
-    from ib.ext.Contract import Contract
-   
-    newContract = Contract()
-    newContract.m_symbol = m_symbol
-    newContract.m_secType = m_secType
-    newContract.m_exchange = m_exchange
-    newContract.m_currency = m_currency
-    return newContract
-
-def makeForexContract(m_symbol,m_secType = 'CASH',
-                      m_exchange = 'IDEALPRO',
-                      m_currency = 'USD'):
-        
-        
-        
-        
-    from ib.ext.Contract import Contract
-    newContract = Contract()
-    newContract.m_symbol = m_symbol #contract.symbol("EUR");
-    newContract.m_secType = m_secType #contract.secType("CASH");
-    newContract.m_exchange = m_exchange #contract.exchange("IDEALPRO");
-    newContract.m_currency = m_currency #contract.currency("GBP");
-    return newContract
+from lib.Contract import makeStkContrcat,makeForexContract,makeOptContract
+###########,
 
 
-
-class IntradayOLSMRStrategy():
+class MyStrategy(Strategy):
     """
     Uses ordinary least squares (OLS) to perform a rolling linear
     regression to determine the hedge ratio between a pair of equities.
@@ -81,7 +45,7 @@ class IntradayOLSMRStrategy():
     """
     
     def __init__(
-        self,strategyName, Ibroker ,contract_list
+        self,strategy_name, Ibroker ,contract_list
     ):
         """
         Initialises the stat arb strategy.
@@ -90,7 +54,7 @@ class IntradayOLSMRStrategy():
         bars - The DataHandler object that provides bar information
         events - The Event Queue object.
         """
-        self.strategyName=strategyName
+        self.strategy_name=strategy_name
         self.run_number=0
         self.barBAC = []
         self.barAAPL= []
@@ -156,9 +120,11 @@ if __name__ == "__main__":
     symbol_list =   [aapl,bac]
     
     Mystrategy= LiveExecutionContainer(
-        strategyName   =   'myFirstTest',
-        strategy        =   IntradayOLSMRStrategy,
-        contract_list   =   symbol_list
+        strategy_name   =   'MyStrategy',
+        strategy        =   MyStrategy,
+        contract_list   =   symbol_list,
+        debug_data_feed =   False,
+        debug_broker    =   True,
          )
     
     Mystrategy.run()
