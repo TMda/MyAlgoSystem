@@ -1,0 +1,29 @@
+ 
+{% extends "frontend/base.html" %}
+
+
+{% block content %}
+
+
+<h1>Clients</h1>
+
+ <div class="well">
+     <table class="table table-striped"> 
+   
+
+    {% for client in object_list %}
+        <tr>
+            
+        <td class="client" >
+            {{ client }}</td>
+        <td>(<a href="{% url "client_edit" pk=client.id %}">edit</a>)</td>
+        <td>(<a href="{% url "client_transaction" pk=client.id %}">transaction</a>)</td>
+        </tr>
+    {% endfor %}
+
+    `</table>
+ </div>
+{% endblock %}
+  
+
+

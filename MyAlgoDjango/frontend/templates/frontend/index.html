@@ -1,0 +1,139 @@
+{% extends "frontend/base.html" %}
+
+{% block content %}
+{% load staticfiles %}
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-danger" role="alert">
+            <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+            <span class="sr-only">
+                {{message}}
+            </span>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<div class="container">
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="alert alert-warning">
+                <strong>CASH</strong> {{cash}}
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        
+        <div class="col-sm-12">
+            <div class="">
+               
+                CURRENT POSITION
+                {%if active_positions %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>run_number</th>
+                                <th>contract code</th>
+                                <th>position</th>
+                                <th>marketPrice</th>
+                                <th>marketValue</th>
+                                <th>averageCost</th>
+                                <th>unrealizedPNL</th>
+                                <th>realizedPNL</th>
+                                <th>Cancel</th>
+                            </tr>
+                        </thead>
+                         <tbody>
+                            {% for  position in active_positions %}
+                                <tr class="success">
+                                    <td>{{ position.strategy_name}}</td>
+                                    <td>{{ position.run_number}}</td>
+                                    <td>{{ position.contract_code}}</td>
+                                    <td>{{ position.position}}</td>
+                                    <td>{{ position.marketPrice}}</td>
+                                    <td>{{ position.marketValue}}</td>
+                                    <td>{{position.averageCost}}</td>
+                                    <td>{{position.unrealizedPNL}}</td>
+                                    <td>{{position.realizedPNL}}</td>
+                                    <td><button type="button" class="btn btn-danger">Close</button></td>
+                                    
+                                </tr>
+                           {% endfor %}
+                        </tbody>
+                   </table>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+     <div class="row">
+        <div class="col-sm-6">
+            <div class="well">
+                INITIAL OPEN ORDER
+                {%if initial_orders %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>contract code</th>
+                                <th>Status</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Action</th>
+                                <th>ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for  order in initial_orders %}
+                                <tr class="">
+                                    <td>{{ order.contract_code}}</td>
+                                    <td>{{ order.status}}</td>
+                                    <td>{{ order.ibOrder_m_orderType}}</td>
+                                    <td>{{ order.ibOrder_m_totalQuantity}}</td>
+                                    <td>{{order.ibOrder_m_action}}</td>
+                                    <td>{{ order.ibOrder_m_orderId }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <div class="well">
+                ACTIVE OPEN ORDER
+                {%if active_orders %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>contract code</th>
+                                <th>Status</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Action</th>
+                                <th>ID</th>
+                                <th>Cancel</th>
+                                
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for  order in active_orders %}
+                                <tr class="">
+                                    <td>{{ order.contract_code}}</td>
+                                    <td>{{ order.status}}</td>
+                                    <td>{{ order.ibOrder_m_orderType}}</td>
+                                    <td>{{ order.ibOrder_m_totalQuantity}}</td>
+                                    <td>{{order.ibOrder_m_action}}</td>
+                                    <td>{{ order.ibOrder_m_orderId }}</td>
+                                    <td><button type="button" class="btn btn-warning">Close</button></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                   </table>
+                {% endif %}  
+            </div>
+        </div>
+    </div>
+</div>
+    
+
+
+{% endblock %}

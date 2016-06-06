@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}  </title>
+    {% load staticfiles %}
+
+ 
+ 
+    <link rel="stylesheet" href="{% static 'frontend/bootstrap-3.3.6/css/bootstrap.min.css' %}"">
+    <script src="{% static 'frontend/jquery/jquery-1.12.3.min.js' %}"></script>
+    <script src="{% static 'frontend/bootstrap-3.3.6/js/bootstrap.min.js'%}"></script>
+ 
+
+ <style>
+  
+.navbar {
+    margin-bottom: 0;
+    background-color: #3cbae7;
+    z-index: 9999;
+    border: 0;
+    font-size: 12px !important;
+    line-height: 1.42857143 !important;
+    letter-spacing: 4px;
+    border-radius: 0;
+}
+
+.navbar li a, .navbar .navbar-brand {
+    color: #fff !important;
+}
+
+.navbar-nav li a:hover, .navbar-nav li.active a {
+    color: #f4511e !important;
+    background-color: #fff !important;
+}
+
+.navbar-default .navbar-toggle {
+    border-color: transparent;
+    color: #fff !important;
+}
+
+.jumbotron{
+color: #3cbae7 ; /*#FFFFFF*/;
+background-color: #FFFFFF!important;
+/*background-color:none !important;*/
+}
+</style>
+
+ 
+</head>
+<body>
+<div class="container">
+    <div class="page-header" background-color:#3cbae7>
+        <div class="navbar navbar-inverse navbar-fixed-top">
+            <div class="container">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                        <span class="icon-bar">1</span>
+                        <span class="icon-bar">2</span>
+                        <span class="icon-bar">3</span>
+                    </button>
+                    <a href="{% url 'index' %}" class="navbar-brand">EEngine<span class="glyphicon glyphicon-globe "></span></a>
+                </div>
+                <div class="navbar-collapse collapse">
+                    <ul class="nav navbar-nav">
+                        {% if user.is_authenticated %}
+                            {% if not user.is_staff %}
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Actions<span class="caret"></span></a>
+                                <ul class="dropdown-menu" role="menu">
+                                    <li><a href="{% url 'opscen' %}">Opscen</a></li>
+
+                                    <li class="divider"></li>
+                                    <li><a href='#'>Horizon Scanning</a></li>
+                                    <li class="divider"></li>
+                                  
+                                </ul>
+                        </li>  
+
+   
+                            {% else %}
+                           <li><a href='#'>Settings</a></li>
+                        <li><a  href="{% url 'user_list' %}">Manage User</a></li>
+                            {% endif %}
+                        {% endif %}
+                     <li><a href="{% url 'opscen' %}">Opscen</a></li>
+
+                        <li class="divider"></li>
+                        <li><a href='#'>Horizon Scanning</a></li>
+
+                     
+                      
+                        <li><a  href="{% url 'contact' %}">Contact</a></li>
+                    {% include 'frontend/loginpartial.html' %}
+                    </ul>
+                
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    <div class="container body-content">
+{% block content %}{% endblock %}
+        
+        <footer>
+            <p>&copy; {{ year }} UNICEF DRP - M</p>
+        </footer>
+    </div>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

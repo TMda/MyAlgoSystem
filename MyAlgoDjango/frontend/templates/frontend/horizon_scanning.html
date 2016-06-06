@@ -1,0 +1,80 @@
+{% extends "frontend/base.html" %}
+{% block content %}
+<h2>{{ title }}</h2>
+                
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-danger" role="alert">
+        <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+        <span class="sr-only">Error:</span>
+            {{message}}
+    </div>
+    {% endfor %}
+{% endif %}
+
+<div class="navbar navbar-inverse navbar-static-top" role="navigation">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-ex1-collapse">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" rel="home" href="/" title="">EEnX Search</a>
+    </div>
+
+    <div class="collapse navbar-collapse navbar-ex1-collapse">
+        <div class="col-sm-3 col-md-3 pull-right">
+            <form class="navbar-form" role="search" method="get" action="{% url 'search' %} >
+                {# csrf_token is not needed when the method is "get" #}
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Search" name="search_text" id="search_text">
+                        <div class="input-group-btn">
+                            <button class="btn btn-default" id="id_pic_submit_button" type="submit"><i class="glyphicon glyphicon-search"></i></button>
+                        </div>
+                    </input>
+                </div>
+            </form>  
+    </div>
+        
+</div>
+
+
+{%if article_search_results %}
+{% for  list in article_search_results %} 
+                   <h4>{{ list.title }} : {{ list.timestamp }}</h4>
+                   <br> Source: {{ list.website_brand }}</br>
+                    <p>{{ list.description }}
+                     <br>{{ list.summary }}<br>
+                     <br><a href="{{ list.url }}"> Access article .....<br></a>
+                    <br><br>
+                      </p>
+               {% endfor %}
+
+{% endif %}
+<div class="search_section">
+
+      {% if  search_text|length > 2 %}
+         <p><b>Searching for &quot;<code>{{ search_text }}</code>&quot;:</b>
+         {% if  article_search_results.count > 0 %}
+            </p>
+            <ul>
+               {% for  list in article_search_results %} {# No colon after "color_search_results" #}
+                   <h2>{{ list.title }} : {{ list.timestamp }}</h2>
+                    <p>{{ list.description }}
+                     <br>{{ list.summary }}<br>
+                     <br>{{ list.website_brand }}<br>
+                    <br>{{ list.url }}<br>
+                      </p>
+               {% endfor %}
+            </ul>
+         {% else %}
+            <i>No results</i></p>
+         {% endif %}
+      {% endif %}
+
+</div>
+{% endblock %}
+{% block scripts %}
+
+{% endblock %}
