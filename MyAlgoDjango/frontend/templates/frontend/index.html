@@ -28,6 +28,9 @@
                
                 CURRENT POSITION
                 {%if active_positions %}
+                  <form id="active_positions" action="{% url "close_position" %}"  method="post" class="">
+                    {% csrf_token %}
+                    <input type="hidden" name="position_to_close" value="">
                     <table class="table">
                         <thead>
                             <tr>
@@ -44,8 +47,10 @@
                             </tr>
                         </thead>
                          <tbody>
+                            
                             {% for  position in active_positions %}
                                 <tr class="success">
+                                
                                     <td>{{ position.strategy_name}}</td>
                                     <td>{{ position.run_number}}</td>
                                     <td>{{ position.contract_code}}</td>
@@ -54,13 +59,19 @@
                                     <td>{{ position.marketValue}}</td>
                                     <td>{{position.averageCost}}</td>
                                     <td>{{position.unrealizedPNL}}</td>
-                                    <td>{{position.realizedPNL}}</td>
-                                    <td><button type="button" class="btn btn-danger">Close</button></td>
+                                    <td>{{position.realizedPNL}}<input type="radio" name="position" onClick="javascript:position={{ position.contract_code}}"></label></td>
+                                    <td><input type="button" name="btn_position_to_close" value="{{ position.contract_code}}" onClick="javascript:position={{ position.contract_code}};close_position()"></td>
+                                    <td><a href="javascript:position={{ position.contract_code}};close_position()" class="btn btn-danger" value="{{ position.contract_code}}">Close</a></td>
                                     
+                                  
                                 </tr>
                            {% endfor %}
+                           </select>
                         </tbody>
                    </table>
+                </form>
+                {% else %}
+                    NO ACTIVE POSITION
                 {% endif %}
             </div>
         </div>
@@ -94,6 +105,8 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                {% else %}
+                    NO INITIAL ORDERS
                 {% endif %}
             </div>
         </div>
@@ -128,12 +141,30 @@
                             {% endfor %}
                         </tbody>
                    </table>
+                {% else %}
+                    NO ACTIVE ORDERS
                 {% endif %}  
             </div>
         </div>
     </div>
 </div>
     
+<script language="javascript">
+var position
 
+function closePosition(){
+    document.getElementById('active_positions').position_to_close=position;
+    document.getElementById('active_positions').submit();
+   
+}
+
+function close_position(){
+
+ document.getElementById('active_positions').position_to_close=position;
+    document.getElementById('active_positions').submit();
+   
+}
+
+</script>
 
 {% endblock %}

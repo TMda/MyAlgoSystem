@@ -1241,7 +1241,16 @@ class MyIbBroker_last():
         newContract.m_exchange = m_exchange
         newContract.m_currency = m_currency
         return newContract
-    def makeOptContract(self,m_symbol, m_right, m_expiry, m_strike,m_secType = 'OPT',m_exchange = 'SMART',m_currency = 'USD'):
+    def makeOptContract(self,
+            IbContract  =   None,
+            m_right     =   None, 
+            m_expiry    =   None, 
+            m_strike    =   None,
+
+            m_symbol    =   None, 
+            m_secType = 'OPT',
+            m_exchange = 'SMART',
+            m_currency = 'USD'):
         '''
         makeOptContract('BAC', '20160304', 'C', 15)
         sym: Ticker instrument
@@ -1250,8 +1259,16 @@ class MyIbBroker_last():
         strike price: float
         '''
         from ib.ext.Contract import Contract
-        newOptContract = Contract()
-        newOptContract.m_symbol = m_symbol
+
+        if isinstance(IbContract,Contract):
+            newOptContract = IbContract
+            
+        else:
+            newOptContract = Contract()
+            newOptContract.m_symbol = m_symbol
+        
+        
+        
         newOptContract.m_secType = m_secType
         newOptContract.m_right = m_right
         newOptContract.m_expiry = m_expiry
@@ -1512,7 +1529,12 @@ class MyIbBroker_last():
         self.notifyOrderEvent(broker.OrderEvent(order, broker.OrderEvent.Type.CANCELED, "User requested cancellation"))
         '''
     # END broker.Broker interface
-
+    def getOptionExpiry(self,month):
+        dic=['20160617','20160715']
+        return dic[0]
+        
+        
+        
 
 class MyIbBroker():
     def __init__(self, host="localhost", port=7496, 

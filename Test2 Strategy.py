@@ -83,14 +83,17 @@ class MyStrategy(Strategy):
         Calculate the SignalEvents based on market data.
         """
         print('bar Got into the Strategy')
-        #print("bar: %s" %(bar))
-
+        print("bar: %s\n" %(bar))
+        contract_code=self.IbBroker.buildContractRepresentation(bar['contract'])
+        print(contract_code+"\n\n")
         if bar['contract'].m_symbol=='AAPL':
-            self.barBAC.append(bar)
-            self.x=np.append(self.x,self.barBAC[-1]['Close'])
-        elif bar['contract'].m_symbol=='BAC':
             self.barAAPL.append(bar)
-            self.y=np.append(self.y,self.barAAPL[-1]['Close'])
+            self.y=np.append(self.x,self.barAAPL[-1]['Close'])
+            print("exit because aapl info")
+            return
+        elif bar['contract'].m_symbol=='BAC':
+            self.barBAC.append(bar)
+            self.x=np.append(self.y,self.barBAC[-1]['Close'])
 
         else:
             return
@@ -112,6 +115,7 @@ class MyStrategy(Strategy):
             
         self.mvx    =   pd.rolling_mean(self.x,window=5)
         self.mvy    =   pd.rolling_mean(self.x,window=10)
+        price       =   self.x[-1]
 
         delta       =   self.mvy-self.mvx
         delt        =   delta[-1]
@@ -130,79 +134,90 @@ class MyStrategy(Strategy):
         #print("self.short: %s"%(self.short))
            
         
-        if delt<0 : #low above high
-            if regime: # the change above threshold
-                if self.long==False and self.short==False:
-                    
-                    if order['executed'] !='SUBMITTED':
-                        print('Low above high and delta > sd - Buying 10 share - Opening position' %())
-                        self.IbBroker.submitMarketOrder('BUY',self.contract_list[0],10)
+        if delt>0 : #low above high
+            if regime:
+                # the change above threshold
+                optionExpiry = self.IbBroker.getOptionExpiry(2)
+                m_strike     = float(round(price)+1)
+                quantity     = round(self.IbBroker.getCash()/(2*150))
+                print('Low above high and delta > sd - Buying 10 share - Opening position' %())
+                option     =   self.IbBroker.makeOptContract(
+                    IbContract  =   self.contract_list[0],
+                        m_right     =   'C', 
+                        m_expiry    =   optionExpiry, 
+                        m_strike    =   m_strike,)
+
+                if order['executed'] !='SUBMITTED':
+                    if self.long==False and self.short==False:
+
+                        self.IbBroker.submitMarketOrder('BUY',option,quantity)
                         self.long   =   True
                         self.short  =   False
-                    else:
-                        print("Previous order not executed yet do nothing ")
-                elif self.long==False and self.short==True:
-                    if order['executed'] !='SUBMITTED':
+                    elif self.long==False and self.short==True:
                         print('Low above high and delta > sd - Buying 10 share - Closing position' %())
-                        self.IbBroker.submitMarketOrder('BUY',self.contract_list[0],10)
+                        self.IbBroker.submitMarketOrder('BUY',option,quantity)
                         self.long   =   True
                         self.short  =   False
-                    else:
-                        print("Previous order not executed yet do nothing ")
-   
-                elif self.long  ==  True:
-                    if order['executed'] !='SUBMITTED':
+       
+                    elif self.long  ==  True:
                         print('Low above high but already in Long position - Do nothing' %())
                     else:
-                        print("Previous order not executed yet do nothing ")
+                        print('UNKNOWN STATE Low above High' %())
+                        print("self.mvx: %s"%(self.mvx[-1]))
+                        print("self.mvy: %s"%(self.mvy[-1] ))
+                        print("delta: %s"%(delt))
+                        print("sd: %s"%(sd))
+                        print("regime: %s"%(regime))
+                        print("self.long: %s"%(self.long))
+                        print("self.short: %s"%(self.short))
+
                 else:
-                    print('UNKNOWN STATE Low above High' %())
-                    print("self.mvx: %s"%(self.mvx[-1]))
-                    print("self.mvy: %s"%(self.mvy[-1] ))
-                    print("delta: %s"%(delt))
-                    print("sd: %s"%(sd))
-                    print("regime: %s"%(regime))
-                    print("self.long: %s"%(self.long))
-                    print("self.short: %s"%(self.short))
+                    print("Previous order not executed yet do nothing ")
                     
                     
                     
                 
         else: #high above low
             if regime:
-                if self.long and self.short == False:
-                    if order['executed'] !='SUBMITTED':
+                optionExpiry = self.IbBroker.getOptionExpiry(2)
+                m_strike     = float(round(price)-1)
+                quantity     = round(self.IbBroker.getCash()/(2*150))
+                print('Low above high and delta > sd - Buying 10 share - Opening position' %())
+                option     =   self.IbBroker.makeOptContract(
+                    IbContract  =   self.contract_list[0],
+                        m_right     =   'P', 
+                        m_expiry    =   optionExpiry, 
+                        m_strike    =   m_strike,)
+
+                if order['executed'] !='SUBMITTED':
+                    
+
+                    if self.long and self.short == False:
                         print('High above low and delta > sd - selling 10 share - Closing position' %())
-                        self.IbBroker.submitMarketOrder('SELL',self.contract_list[0],10)
+                        self.IbBroker.submitMarketOrder('SELL',option,quantity)
                         self.long   =   False
                         self.short  =    True
-                    else:
-                        print("High above low - Previous order not executed yet do nothing ")
-
-                elif self.long ==False and self.short ==False:
-                    if order['executed'] !='SUBMITTED':
+    
+                    elif self.long ==False and self.short ==False:
                         print('High above low and delta > sd - selling 10 share - Opening position' %())
-                        self.IbBroker.submitMarketOrder('SELL',self.contract_list[0],10)
+                        self.IbBroker.submitMarketOrder('SELL',option,quantity)
                         self.long   =   False
                         self.short  =   True
-                    else:
-                        print("High above low - Previous order not executed yet do nothing ")
-
-                elif self.short  ==  True:
-                    if order['executed'] !='SUBMITTED':
+    
+                    elif self.short  ==  True:
                         print('High above low but already in Short position - Do nothing' %())
+    
                     else:
-                        print("High above low - Previous order not executed yet do nothing ")
-
+                        print('UNKNOWN STATE High above Low' %())
+                        print("self.mvx: %s"%(self.mvx[-1]))
+                        print("self.mvy: %s"%(self.mvy[-1] ))
+                        print("delta: %s"%(delta[-1]))
+                        print("sd: %s"%(sd))
+                        print("regime: %s"%(regime))
+                        print("self.long: %s"%(self.long))
+                        print("self.short: %s"%(self.short))
                 else:
-                    print('UNKNOWN STATE High above Low' %())
-                    print("self.mvx: %s"%(self.mvx[-1]))
-                    print("self.mvy: %s"%(self.mvy[-1] ))
-                    print("delta: %s"%(delta[-1]))
-                    print("sd: %s"%(sd))
-                    print("regime: %s"%(regime))
-                    print("self.long: %s"%(self.long))
-                    print("self.short: %s"%(self.short))
+                    print("High above low - Previous order not executed yet do nothing ")
                     
             
         
@@ -216,7 +231,7 @@ if __name__ == "__main__":
     aapl        =   makeStkContrcat('AAPL')
     bac         =   makeStkContrcat('BAC')
     fut         =   makeForexContract('ES','201612')
-    symbol_list =   [aapl,bac]
+    symbol_list =   [bac,aapl]
     
     Mystrategy= LiveExecutionContainer(
         strategy_name   =   'MyStrategy',
