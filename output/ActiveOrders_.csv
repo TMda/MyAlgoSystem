@@ -1,0 +1,6 @@
+,datetime,status,contract_code,FilledQuantitiy,avgFillPrice,ibContract_m_symbol,ibContract_m_secType,ibContract_m_currency,ibContract_m_exchange,ibContract_m_multiplier,ibContract_m_expiry,ibContract_m_strike,ibContract_m_right,ibOrder_m_orderId,ibOrder_m_clientId,ibOrder_m_permid,ibOrder_m_action,ibOrder_m_lmtPrice,ibOrder_m_auxPrice,ibOrder_m_tif,ibOrder_m_transmit,ibOrder_m_orderType,ibOrder_m_totalQuantity,ibOrder_m_parentId,ibOrder_m_trailStopPrice,ibOrder_m_trailingPercent,ibOrder_m_allOrNone,remaining,lastFillPrice,openOrderYesNo
+194,6/6/2016 15:58,SUBMITTED,AAPL:STK::0:,0,0,AAPL,STK,USD,SMART,,,0,,194,0,,SELL,2147483647,2147483647,DAY,1,MKT,10,0,2147483647,2147483647,0,,,TRUE
+195,6/6/2016 15:59,SUBMITTED,AAPL:STK::0:,0,0,AAPL,STK,USD,SMART,,,0,,195,0,,BUY,2147483647,2147483647,DAY,1,MKT,10,0,2147483647,2147483647,0,,,TRUE
+196,6/6/2016 15:59,SUBMITTED,AAPL:STK::0:,0,0,AAPL,STK,USD,SMART,,,0,,196,0,,SELL,2147483647,2147483647,DAY,1,MKT,10,0,2147483647,2147483647,0,,,TRUE
+197,6/6/2016 16:01,SUBMITTED,AAPL:STK::0:,0,0,AAPL,STK,USD,SMART,,,0,,197,0,,BUY,2147483647,2147483647,DAY,1,MKT,10,0,2147483647,2147483647,0,,,TRUE
+300,6/6/2016 16:01,SUBMITTED,AAPL:STK:?:0.0:None,0,0,AAPL,STK,USD,SMART,,,0,?,300,4948,,BUY,98.67,0,DAY,1,MKT,10,0,2147483647,2147483647,0,10,0,TRUE

@@ -76,10 +76,18 @@ def index(request):
                
       
     return render(request, 'frontend/index.html', context)   
-    
 
 def user_list(request):
     return HttpResponse("Hello, world. You're at user_list.")
+
+def cancel_order(request):
+    return HttpResponse("Hello, world. You're at user_list.")    
+
+def close_position(request):
+    return HttpResponse("Hello, world. You're at user_list.")
+    
+def get_trading_data(request):
+    return HttpResponse("Hello, world. You're at user_list.")  
     
 def info_frontend(request):
     context = {'title': 'Info info_frontend',

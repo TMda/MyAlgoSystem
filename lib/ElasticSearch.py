@@ -97,14 +97,14 @@ def loadIntoEsIndex(portfolio_dic,type_name=TYPE_NAME,index_name = INDEX_NAME,id
     from elasticsearch import Elasticsearch
     import datetime
     es = Elasticsearch(hosts = [ES_HOST])
-    print()
-    print ('loadIntoEsIndex starts: %s'% (unicode(datetime.datetime.now())))
-    print()
-    print ('Portfolio dic received : %s' %(portfolio_dic))
-    print()
+    #print()
+    #print ('loadIntoEsIndex starts: %s'% (unicode(datetime.datetime.now())))
+    #print()
+    #print ('Portfolio dic received : %s' %(portfolio_dic))
+    #print()
     try:
         res = es.index(index=INDEX_NAME, doc_type=TYPE_NAME, body=portfolio_dic)
-        print("Portfolio position loaded into ES: "%(res['created']))
+        #print("Portfolio position loaded into ES: %s "%(res['created']))
     except Exception as e:
         print(e)
     

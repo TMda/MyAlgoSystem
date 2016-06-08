@@ -56,17 +56,27 @@ class MyStrategy(Strategy):
         """
         self.strategy_name=strategy_name
         self.run_number=0
+        
         self.barBAC = []
         self.barAAPL= []
+
         self.x=np.array(1)
         self.y=np.array(1)
+        self.delta=np.array(1)
+
         self.i=0
+
         self.mvx=[]
         self.mvy=[]
+
         self.long=False
         self.short=False
+
         self.IbBroker=Ibroker
         self.contract_list=contract_list
+
+
+
 
     def onBar(self, bar):
         """
@@ -91,20 +101,109 @@ class MyStrategy(Strategy):
         
     def calculate_signals_for_pairs(self, bar):
         print('STRATEGY - i: %s' %(self.i))
-
-        if self.i <5:
+        #position    =   self.IbBroker.overalPosition
+        print(self.IbBroker.overalPosition)
+        order       =   self.IbBroker.submittedOrder
+        print( self.IbBroker.submittedOrder)
+        
+        if self.i <10:
             print('EXIST i <5: %s' %(self.i))
             return
-        self.mvx=pd.rolling_mean(self.x,5)
-        if self.long==False and self.short==False:
-            print('Mean > price Buying 10 share' %())
-            self.IbBroker.createMarketOrder('BUY',self.contract_list[0],10)
-            self.long=True
-        if self.long:
-            print('Mean > price Buying 10 share' %())
-            self.IbBroker.createMarketOrder('SELL',self.contract_list[0],10)
-            self.long=True
             
+        self.mvx    =   pd.rolling_mean(self.x,window=5)
+        self.mvy    =   pd.rolling_mean(self.x,window=10)
+
+        delta       =   self.mvy-self.mvx
+        delt        =   delta[-1]
+        delta       =   delta[~np.isnan(delta)]
+        sd          =   np.std(delta) # Standard deviation between high and low
+        regime      =   abs(delt) > abs(sd)
+        regime      =   1>0
+        sd          =  0
+        #print("self.mvx: %s"%(self.mvx[-1] ))
+        #print("self.mvy: %s"%(self.mvy[-1] ))
+        #print("delta: %s"%(delta))
+        #print("delta: %s"%(delt))
+        print("sd: %s"%(sd))
+        print("regime: %s"%(regime))
+        #print("self.long: %s"%(self.long))
+        #print("self.short: %s"%(self.short))
+           
+        
+        if delt<0 : #low above high
+            if regime: # the change above threshold
+                if self.long==False and self.short==False:
+                    
+                    if order['executed'] !='SUBMITTED':
+                        print('Low above high and delta > sd - Buying 10 share - Opening position' %())
+                        self.IbBroker.submitMarketOrder('BUY',self.contract_list[0],10)
+                        self.long   =   True
+                        self.short  =   False
+                    else:
+                        print("Previous order not executed yet do nothing ")
+                elif self.long==False and self.short==True:
+                    if order['executed'] !='SUBMITTED':
+                        print('Low above high and delta > sd - Buying 10 share - Closing position' %())
+                        self.IbBroker.submitMarketOrder('BUY',self.contract_list[0],10)
+                        self.long   =   True
+                        self.short  =   False
+                    else:
+                        print("Previous order not executed yet do nothing ")
+   
+                elif self.long  ==  True:
+                    if order['executed'] !='SUBMITTED':
+                        print('Low above high but already in Long position - Do nothing' %())
+                    else:
+                        print("Previous order not executed yet do nothing ")
+                else:
+                    print('UNKNOWN STATE Low above High' %())
+                    print("self.mvx: %s"%(self.mvx[-1]))
+                    print("self.mvy: %s"%(self.mvy[-1] ))
+                    print("delta: %s"%(delt))
+                    print("sd: %s"%(sd))
+                    print("regime: %s"%(regime))
+                    print("self.long: %s"%(self.long))
+                    print("self.short: %s"%(self.short))
+                    
+                    
+                    
+                
+        else: #high above low
+            if regime:
+                if self.long and self.short == False:
+                    if order['executed'] !='SUBMITTED':
+                        print('High above low and delta > sd - selling 10 share - Closing position' %())
+                        self.IbBroker.submitMarketOrder('SELL',self.contract_list[0],10)
+                        self.long   =   False
+                        self.short  =    True
+                    else:
+                        print("High above low - Previous order not executed yet do nothing ")
+
+                elif self.long ==False and self.short ==False:
+                    if order['executed'] !='SUBMITTED':
+                        print('High above low and delta > sd - selling 10 share - Opening position' %())
+                        self.IbBroker.submitMarketOrder('SELL',self.contract_list[0],10)
+                        self.long   =   False
+                        self.short  =   True
+                    else:
+                        print("High above low - Previous order not executed yet do nothing ")
+
+                elif self.short  ==  True:
+                    if order['executed'] !='SUBMITTED':
+                        print('High above low but already in Short position - Do nothing' %())
+                    else:
+                        print("High above low - Previous order not executed yet do nothing ")
+
+                else:
+                    print('UNKNOWN STATE High above Low' %())
+                    print("self.mvx: %s"%(self.mvx[-1]))
+                    print("self.mvy: %s"%(self.mvy[-1] ))
+                    print("delta: %s"%(delta[-1]))
+                    print("sd: %s"%(sd))
+                    print("regime: %s"%(regime))
+                    print("self.long: %s"%(self.long))
+                    print("self.short: %s"%(self.short))
+                    
             
         
 

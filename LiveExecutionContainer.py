@@ -94,7 +94,8 @@ class LiveExecutionContainer(object):
                                     host            =   "localhost", 
                                     port            =   7496, 
                                     debug           =   self.debug_broker , 
-                                    clientId        =   None, 
+                                    clientId        =   None,
+                                    dir_Output      =   self.dir_Output,
                                     event           =   self.events )
         
         self.strategy       =   self.strategy_input(
@@ -109,7 +110,7 @@ class LiveExecutionContainer(object):
             #/function tested/
             self.strategy.IbBroker.getInitialOrders().to_csv(self.dir_Output+"InitialOrders.csv")
             self.output()
-            self.strategy.IbBroker.getInitialOrders().to_sql(self.dir_Output+'myalgo',flavor='sqlite', if_exists='replace')
+            #self.strategy.IbBroker.getInitialOrders().to_sql(self.dir_Output+'myalgo',flavor='sqlite', if_exists='replace')
         except Exception as e:
             print (e)
             print ("Live Excecution Container Error output initial performances")
@@ -121,7 +122,7 @@ class LiveExecutionContainer(object):
         i = 0
         while True:
             i += 1
-            print(i)
+            #print(i)
             
             # condition to stop the live run, put a file named stop in
             # output
@@ -227,30 +228,30 @@ class LiveExecutionContainer(object):
         #print("Active Positions: ")
         #print (type(self.strategy.IbBroker.getActivePositions()))
         #print (self.strategy.IbBroker.getActivePositions())
-        self.strategy.IbBroker.getActivePositions().to_csv(self.dir_Output+"ActivePositions.csv")
-        self.strategy.IbBroker.getActivePositions().to_sql(self.dir_Output+'myalgo',flavor='sqlite', if_exists='replace')
+        #self.strategy.IbBroker.getActivePositions().to_csv(self.dir_Output+"ActivePositions.csv")
+        #self.strategy.IbBroker.getActivePositions().to_sql(self.dir_Output+'myalgo',flavor='sqlite', if_exists='replace')
         #/Function to test in production
 #        print("Positions History: ")
 #        print (type(self.strategy.IbBroker.getPositionsHistory()))
 #        print (self.strategy.IbBroker.getPositionsHistory())
-        self.strategy.IbBroker.getPositionsHistory().to_csv(self.dir_Output+"PositionsHistory.csv")
-        self.strategy.IbBroker.getPositionsHistory().to_sql(self.dir_Output+'myalgo',flavor='sqlite',  if_exists='replace')
+        #self.strategy.IbBroker.getPositionsHistory().to_csv(self.dir_Output+"PositionsHistory.csv")
+        #self.strategy.IbBroker.getPositionsHistory().to_sql(self.dir_Output+'myalgo',flavor='sqlite',  if_exists='replace')
         #/Function to test in production
         #print("Active Orders: ")
         #print (type(self.strategy.IbBroker.getActiveOrders()))
-        self.strategy.IbBroker.getActiveOrders().to_csv(self.dir_Output+"ActiveOrders.csv")
-        self.strategy.IbBroker.getActiveOrders().to_sql(self.dir_Output+'myalgo',flavor='sqlite',  if_exists='replace')
-        print("Filled Order: ")
-        print (type(self.strategy.IbBroker.getFilledOrders()))
-        print (self.strategy.IbBroker.getFilledOrders())
-        self.strategy.IbBroker.getFilledOrders().to_csv(self.dir_Output+"FilledOrders.csv")
-        self.strategy.IbBroker.getFilledOrders().to_sql(self.dir_Output+'myalgo',flavor='sqlite', if_exists='replace')
+        #self.strategy.IbBroker.getActiveOrders().to_csv(self.dir_Output+"ActiveOrders.csv")
+        #self.strategy.IbBroker.getActiveOrders().to_sql(self.dir_Output+'myalgo',flavor='sqlite',  if_exists='replace')
+        #print("Filled Order: ")
+        #print (type(self.strategy.IbBroker.getFilledOrders()))
+        #print (self.strategy.IbBroker.getFilledOrders())
+        #self.strategy.IbBroker.getFilledOrders().to_csv(self.dir_Output+"FilledOrders.csv")
+        #self.strategy.IbBroker.getFilledOrders().to_sql(self.dir_Output+'myalgo',flavor='sqlite', if_exists='replace')
         #/Function to test in production
         #print("Order History: ")
         #print (type(self.strategy.IbBroker.getOrdersHistory()))
         #print (self.strategy.IbBroker.getOrdersHistory())
-        self.strategy.IbBroker.getOrdersHistory().to_csv(self.dir_Output+"OrdersHistory.csv")
-        self.strategy.IbBroker.getOrdersHistory().to_sql(self.dir_Output+'myalgo',flavor='sqlite',  if_exists='replace')
+        #self.strategy.IbBroker.getOrdersHistory().to_csv(self.dir_Output+"OrdersHistory.csv")
+        #self.strategy.IbBroker.getOrdersHistory().to_sql(self.dir_Output+'myalgo',flavor='sqlite',  if_exists='replace')
 
 
        

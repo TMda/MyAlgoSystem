@@ -48,7 +48,7 @@ class MyLiveStrategy(Strategy):
 
     def __init__( self,
                   Ibroker ,contract_list,
-                  strategy_name =   'MyLiveStrategy'
+                  strategy_name =   'MyLiveStrategy',
                   heartbeat     =   1, 
                   debug         =   False):
         self.strategy_name=strategy_name

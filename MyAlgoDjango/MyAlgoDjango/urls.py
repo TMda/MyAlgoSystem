@@ -27,8 +27,12 @@ urlpatterns = [
     url(r'^contact', views.contact, name='contact'), 
     url(r'^logout', views.logout, name='logout'), 
     url(r'^search', views.search, name='search'), 
+    
+    url(r'^cancel_order'    ,   views.cancel_order,     name='cancel_order'), 
+    url(r'^close_position'  ,   views.close_position,   name='close_position'), 
+    url(r'^get_trading_data',   views.get_trading_data, name='get_trading_data'), 
 
- url(r'^horizon_scanning', views.horizon_scanning, name='horizon_scanning'), 
+    url(r'^horizon_scanning', views.horizon_scanning, name='horizon_scanning'), 
     url(r'^processLogin', views.processLogin, name='processLogin'),  
     url(r'^login',
         'django.contrib.auth.views.login',
