@@ -3,23 +3,23 @@ from __future__ import print_function
 from ib.ext import Contract
 from ib.ext import Order
 import time
-from ib.opt import ibConnection, message
+from ib.opt import ibConnection
 import random
 import datetime as dat
 import datetime
-import datetime as dt
-from math import floor
+
+
 try:
     import Queue as queue
 except ImportError:
     import queue
 
-import numpy as np
+#import numpy as np
 import pandas as pd
 
 from lib.ElasticSearch import loadIntoEsIndex
-from event import MarketEvent
-from performance import create_sharpe_ratio, create_drawdowns
+#from event import MarketEvent
+#from performance import create_sharpe_ratio, create_drawdowns
 
 #%%
 
@@ -82,6 +82,7 @@ class MyIbBroker_last():
         self.__activeOrders             =   pd.DataFrame(   columns    =   self.orderColumn  ) #Order not yet fully or partially filled
         self.__ordersHistory            =   pd.DataFrame(   columns    =   self.orderColumn  )  #keep history of order life
         self.__ordersFilled             =   pd.DataFrame(   columns    =   self.orderColumn  )  #keep history of Filled order
+        self.__ordersCancelled          =   pd.DataFrame(   columns    =   self.orderColumn  )  #keep history of Cancelled order
         
                      
         #Position Management
@@ -241,9 +242,86 @@ class MyIbBroker_last():
     # BEGIN FEEDBACK HANDLER
     def __error_handler(self,msg):
         """Handles the capturing of error messages"""
-        
+        message     =   None
+        now         =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        erroCode    =   int(msg.errorCode)
+        if self.__debug:
+            print ('%s[MyIbBroker_last __error_handler] BEGIN********__error_handler *****************' % (now,))
+
         if self.__debug: 
-            print("Server Error: %s" % msg)
+            print("%s[MyIbBroker_last __error_handler] Server Error: %s" % (now,msg))
+
+        
+        def cancelOrderInternal(orderId):
+                       
+            orderId = int(orderId)
+            order   =   self.__getActiveOrder(orderId)
+            self.__unregisterOrder(order,"CANCELLED_BY_API")
+            self.submittedOrder      =   {
+                    'contract_code'  :   None,
+                    'order_id'       :   None,
+                    'executed'       :   None,
+                    'totalQuantity'  :   None,
+                    'FilledQuantitiy':   None,
+                    'avgFillPrice'   :   None,
+                    'lastFillPrice'  :   None,
+                    'remaining'      :   None,
+        
+        }
+
+
+
+
+        
+
+        if erroCode == 100:
+            message = "100	Max rate of messages per second has been exceeded."
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+        elif erroCode == 101:
+            message = "101	Max number of tickers has been reached."
+            if self.__debug: 
+                print("%s[MyIbBr1ker_last __error_handler] Error code: %s" % (now,message))
+        elif erroCode == 102:
+            message = "102	Duplicate ticker ID."
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+        elif erroCode == 103:
+            message = "103	Duplicate order ID."
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+        elif erroCode == 104:
+            message = "104	Can't modify a filled order."
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+        elif erroCode == 200:
+            message = "200 No security definition has been found for the request."
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+        
+        elif erroCode == 201:
+            message = "201 Order rejected - Reason %s" % (msg.errorMsg)
+            orderId = int(msg.id)
+            cancelOrderInternal(orderId)
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+
+        elif erroCode == 202:
+            message = "202	Order cancelled - Reason %s" % (msg.errorMsg)
+            orderId = int(msg.id)
+            cancelOrderInternal(orderId)
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+ 
+        elif erroCode == 203:
+            message = "203	The security <security> is not available or allowed for this account"
+            orderId = int(msg.id)
+            if self.__debug: 
+                print("%s[MyIbBroker_last __error_handler] Error code: %s" % (now,message))
+        if self.__debug:
+            print ('%s[MyIbBroker_last __error_handler] END********__error_handler *****************' % (now,))
+        return
+        
     def __accountHandler(self,msg):
         #FYI this is not necessarily USD - probably AUD for me as it's the base currency so if you're buying international stocks need to keep this in mind
         #self.__cash = round(balance.getUSDAvailable(), 2)
@@ -317,7 +395,7 @@ class MyIbBroker_last():
           'openOrderYesNo'          :   openOrderYesNo,
         }  
         if self.__debug:
-            print('%s[MyIbBroker_last __createOrder]  Order created sucssfully'%(now))
+            print('%s[MyIbBroker_last __createOrder]  Order: %s created sucssfully'%(now,dico['ibOrder_m_orderId']))
             print ('%s[MyIbBroker_last __createOrder] END********__createOrder *****************' % (now,))
         return pd.Series(dico)
         
@@ -356,8 +434,8 @@ class MyIbBroker_last():
 
         #need to make sure order doesn't overwrite as we may lose information
         if (int(order['ibOrder_m_orderId']) in self.__activeOrders.index):
-            if sel.__debug:
-                print('[%s[MyIbBroker_last __registerOrder] ERROR Order ID already exist in __activeOrders table'% (now,))
+            if self.__debug:
+                print('[%s[MyIbBroker_last __registerOrder] ERROR Order ID: %s already exist in __activeOrders table'% (now,order['ibOrder_m_orderId']))
                 print('[%s[MyIbBroker_last __registerOrder] Order received by the function: \n %s'% (now,order))
                 print('[%s[MyIbBroker_last __registerOrder] Order from ACTIVE ORDER table with same ID: \n %s'% (now,self.__activeOrders.loc[int(order['ibOrder_m_orderId'])]))
                 print ('%s[MyIbBroker_last __registerOrder] END********__registerOrder *****************' % (now,)) 
@@ -373,7 +451,7 @@ class MyIbBroker_last():
                 self.__ordersHistory                                 =   self.__ordersHistory.append(order, ignore_index =   True)
                 try:
                     self.__activeOrders.to_csv(self.dir_Output+"ActiveOrders.csv")
-                    self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv")
+                    self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv",mode='a', header=False)
                     if self.__debug:
                         #print ('%s[MyIbBroker_last __registerOrder] Order received by the function:' % (now,))
                         #print ('%s[MyIbBroker_last __registerOrder] %s' % (now,order))
@@ -381,7 +459,7 @@ class MyIbBroker_last():
                         #print ('%s' % (self.__activeOrders))
                         #print ('%s[MyIbBroker_last __registerOrder] HISTORY ORDER table:' % (now,))
                         #print ('%s' % (self.__ordersHistory))
-                        print ('%s[MyIbBroker_last __registerOrder] Order registered sucssfuly and output Order csv'%(now,))
+                        print ('%s[MyIbBroker_last __registerOrder] Order: %s registered sucssfuly and output Order csv'%(now,order['ibOrder_m_orderId']))
                         print ('%s[MyIbBroker_last __registerOrder] END********__registerOrder *****************' % (now,)) 
                     return
                 except Exception as e:    
@@ -411,17 +489,15 @@ class MyIbBroker_last():
         if self.__debug:
             print ('%s[MyIbBroker_last __unregisterOrder] BEGIN********__unregisterOrder *****************' % (now,))
         
-        try:
-            exist = self.__activeOrders.empty
+        if isinstance(self.__activeOrders,pd.DataFrame):
             exist = True
         
-        except Exception as e:
-            print(e)
+        else :
             exist == False
-        if exist == False:
             self.__activeOrders             =   pd.DataFrame(   columns    =   self.orderColumn  ) #Order not yet fully or partially filled
             if self.__debug:
                 print ('%s[MyIbBroker_last __unregisterOrder] self.__activeOrders was null - Recreated it' % (now,))
+            
         
 
         try:
@@ -430,29 +506,41 @@ class MyIbBroker_last():
             order['openOrderYesNo'] =   False
         
             self.__activeOrders =   self.__activeOrders.drop(order['ibOrder_m_orderId'],inplace=True)
+            if isinstance(self.__activeOrders,pd.DataFrame):
+                pass
+            else :
+                self.__activeOrders             =   pd.DataFrame(   columns    =   self.orderColumn  ) 
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __unregisterOrder] self.__activeOrders got deleted because only one active order deleted - Recreated it' % (now,))
+                
             if self.__debug:
                 #print ('%s[MyIbBroker_last __unregisterOrder] Order to remove from ACTIVE ORDER table:' % (now,))
                 #print ('%s[MyIbBroker_last __unregisterOrder] %s' % (now,order))
                 #print ('%s[MyIbBroker_last __unregisterOrder] ACTIVE ORDER table with removed order:' % (now,))
                 #print ('%s' % (self.__activeOrders))
                 pass
-                    
             if raison   ==  'FILLED':
                 self.__ordersFilled.loc[int(order['ibOrder_m_orderId'])] = order
                 if self.__debug:
-                    print ('%s[MyIbBroker_last __unregisterOrder] Order added to the FILLED ORDER' % (now,))
+                    print ('%s[MyIbBroker_last __unregisterOrder] Order: %s added to the FILLED ORDER' % (now,order['ibOrder_m_orderId']))
                     #print ('%s' % (self.__ordersFilled))
+            elif raison in ['CANCELLED_BY_API','CANCELLED_BY_USER']:
+                self.__ordersCancelled.loc[int(order['ibOrder_m_orderId'])] = order
+                if self.__debug:
+                    print ('%s[MyIbBroker_last __unregisterOrder] Order: %s added to the CANCELLED ORDER' % (now,order['ibOrder_m_orderId']))
+                    #print ('%s' % (self.__ordersCancelled))
+
             try:
                 self.__ordersHistory    =   self.__ordersHistory.append(pd.Series(order),ignore_index=True)
                 try:
                     if exist:
                         self.__activeOrders.to_csv(self.dir_Output+"ActiveOrders.csv")
-                    self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv")
+                    self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv",mode='a', header=False)
                     self.__ordersFilled.to_csv(self.dir_Output+"FilledOrders.csv")
                     if self.__debug:
                         #print ('%s[MyIbBroker_last __unregisterOrder] HISTORY ORDER table:' % (now,))
                         #print ('%s' % (self.__ordersHistory))
-                        print ('%s[MyIbBroker_last __unregisterOrder] ORDER Unregistered sucssfully and table csv output:' % (now,))
+                        print ('%s[MyIbBroker_last __unregisterOrder] ORDER: %s Unregistered sucssfully and table csv output:' % (now,order['ibOrder_m_orderId']))
                         print ('%s[MyIbBroker_last __unregisterOrder] END********__unregisterOrder *****************' % (now,))
                         return
                 except Exception as e:
@@ -468,6 +556,7 @@ class MyIbBroker_last():
                     print('[%s[MyIbBroker_last __unregisterOrder] %s'% (now,e))
                     print ('%s[MyIbBroker_last __unregisterOrder] END********__unregisterOrder *****************' % (now,)) 
                 return
+                    
  
         except Exception as e:
             if self.__debug:
@@ -491,7 +580,7 @@ class MyIbBroker_last():
                 print ('%s[MyIbBroker_last __updateActiveOrder] END********__updateActiveOrder *****************' % (now,)) 
             return
         """
-        if self.__activeOrders == None:
+        if ~isinstance(self.__activeOrders,pd.DataFrame):
             self.__activeOrders             =   pd.DataFrame(   columns    =   self.orderColumn  ) #Order not yet fully or partially filled
             if self.__debug:
                 print ('%s[MyIbBroker_last __updateActiveOrder] self.__activeOrders was null - Recreated it' % (now,))
@@ -517,7 +606,7 @@ class MyIbBroker_last():
             self.__ordersHistory                                     =   self.__ordersHistory.append(order,ignore_index=True)
             
             self.__activeOrders.to_csv(self.dir_Output+"ActiveOrders.csv")
-            self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv")
+            self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv",mode='a', header=False)
             
 
             if self.__debug:
@@ -527,7 +616,7 @@ class MyIbBroker_last():
                 #print ('%s' % (self.__activeOrders))
                 #print('[%s[MyIbBroker_last __updateActiveOrder] HISTORY ORDER table with added order:' % (now,))
                 #print ('%s' % (self.__ordersHistory))
-                print ('%s[MyIbBroker_last __unregisterOrder] ORDER updated and table csv output:' % (now,))
+                print ('%s[MyIbBroker_last __unregisterOrder] ORDER: %s updated and table csv output:' % (now,order['ibOrder_m_orderId']))
                 print ('%s[MyIbBroker_last __updateActiveOrder] END********__updateActiveOrder *****************' % (now,)) 
             return
         except Exception as e:
@@ -540,7 +629,7 @@ class MyIbBroker_last():
         """
         return a pd Series, that can be used as a dictionary
         """
-        now                 =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        #now                 =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if self.__debug:
             #print ('%s[MyIbBroker_last __getActiveOrder] BEGIN********__getActiveOrder *****************' % (now,))
             #print ('%s[MyIbBroker_last __getActiveOrder] Number to check :%s' %(now,orderId) )
@@ -556,7 +645,7 @@ class MyIbBroker_last():
         """
         #msg.orderId,msg.avgFillPrice, abs(msg.filled), 0, datetime.datetime.now()
 
-        ibContract=msg.contract
+        #ibContract=msg.contract
         ibExecution=msg.execution
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         rxDict={
@@ -594,7 +683,10 @@ class MyIbBroker_last():
             print ('%s[MyIbBroker_last __orderStatusHandler] %s' %(now,msg))
             print ('%s[MyIbBroker_last __orderStatusHandler]................................................'%(now,))
         try:   
-            order = self.__getActiveOrder(int(msg.orderId))
+            order = self.__getActiveOrder(int(msg.orderId)).copy()
+            contract_code   =   order['contract_code']
+            order_id        =   order['ibOrder_m_orderId']
+            totalQuantity   =   order['ibOrder_m_totalQuantity']
         except Exception as e:
 
             if self.__debug:
@@ -605,11 +697,9 @@ class MyIbBroker_last():
                 print ('%s[MyIbBroker_last __orderStatusHandler] Open Order Not in Active Order, probably Already Filled or open order from previous session,Cancell it if not necessary anymore'%(now,))
                 #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
                 #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
-                print ('%s[MyIbBroker_last __orderStatusHandler] This is not a response from an active order submitted during this session - Open order should handle it'%(now,))
+                print ('%s[MyIbBroker_last __orderStatusHandler] if it is an order submitted out of hour - Open order should handle it'%(now,))
                 print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
-                return 
-        
-       
+            return 
         if msg.status == 'Filled' and order['status'] != 'FILLED':
             order['status']         =   'FILLED'
             order['avgFillPrice']   =   msg.avgFillPrice
@@ -618,19 +708,18 @@ class MyIbBroker_last():
             order['lastFillPrice']  =   msg.lastFillPrice
             order['openOrderYesNo'] =   False
             if msg.orderId not in self.__ordersFilled.index:
-                if self.submittedOrder['order_id']  == order['ibOrder_m_orderId']:
+                if self.submittedOrder['order_id']  == order_id:
                 #This is to ensure that self.submitted order is capturing information from the same order it was submitted for
                     self.submittedOrder      =   {
-                        'contract_code'  :   order['contract_code'],
-                        'order_id'       :   order['ibOrder_m_orderId'],
+                        'contract_code'  :   contract_code,
+                        'order_id'       :   order_id,
                         'executed'       :   'TOTAL',
-                        'totalQuantity'  :   order['ibOrder_m_totalQuantity'],
+                        'totalQuantity'  :   totalQuantity,
                         'FilledQuantitiy':   abs(msg.filled),
                         'avgFillPrice'   :   float(msg.avgFillPrice),
                         'lastFillPrice'  :   float(msg.lastFillPrice),
                         'remaining'      :   abs(msg.remaining),
-                
-                }
+                    }
 
                 self.__unregisterOrder(order,raison='FILLED')
                 if self.__debug:
@@ -638,6 +727,7 @@ class MyIbBroker_last():
                     print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.submittedOrder))
                     print ('%s' % (self.__activeOrders))
                     print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
+                return
             else:
                 if self.__debug:
                     print ('%s[MyIbBroker_last __orderStatusHandler] Duplicate Order already removed from  __activeOrder table and in Filled Table:' % (now,))
@@ -646,8 +736,6 @@ class MyIbBroker_last():
                     print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
             
             return
-            
-            #order.setState(broker.Order.State.FILLED)
         elif msg.status == 'Submitted' and msg.filled > 0:
             order['status']         =   'PARTIALLY_FILLED'
             order['avgFillPrice']   =   msg.avgFillPrice
@@ -657,115 +745,105 @@ class MyIbBroker_last():
             order['openOrderYesNo'] =   True
             self.__updateActiveOrder(order)
 
-            if self.submittedOrder['order_id']  == order['ibOrder_m_orderId']:
+            if self.submittedOrder['order_id']  == order_id:
                 self.submittedOrder      =   {
-                    'contract_code'  :   order['contract_code'],
-                    'order_id'       :   order['ibOrder_m_orderId'],
+                    'contract_code'  :   contract_code,
+                    'order_id'       :   order_id,
                     'executed'       :   'PARTIAL',
-                    'totalQuantity'  :   order['ibOrder_m_totalQuantity'],
+                    'totalQuantity'  :   totalQuantity,
                     'FilledQuantitiy':   abs(msg.filled),
                     'avgFillPrice'   :   float(msg.avgFillPrice),
                     'lastFillPrice'  :   float(msg.lastFillPrice),
                     'remaining'      :   abs(msg.remaining),
-                    
-            
-            }
+                }
             
             if self.__debug:
+                print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.submittedOrder))
                 print ('%s[MyIbBroker_last __orderStatusHandler] PARTIALLY FILLED Order - Order updated in  __activeOrders table :' % (now,))
-                print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
+                #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
                 print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
                 print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
             return
-
             #may already be partially filled
-            #if order.getState() != broker.Order.State.PARTIALLY_FILLED:
-            #    order.setState(broker.Order.State.PARTIALLY_FILLED)
-        elif msg.status == 'Cancelled' and order['status'] != 'CANCELED':
-            order['status']         =   'CANCELED'
+        elif msg.status == 'Cancelled' or msg.status=='Inactive' and order['status'] != 'CANCELED':
+            order['status']         =   'CANCELLED_BY_API'
             order['avgFillPrice']   =   msg.avgFillPrice
             order['FilledQuantitiy']=   abs(msg.filled)
             order['remaining']      =   abs(msg.remaining)
             order['lastFillPrice']  =   msg.lastFillPrice
             order['openOrderYesNo'] =   False
-            if self.submittedOrder['order_id']  == order['ibOrder_m_orderId']:
+            if self.submittedOrder['order_id']  == order_id:
                 self.submittedOrder      =   {
-                    'contract_code'  :   order['contract_code'],
-                    'order_id'       :   order['ibOrder_m_orderId'],
+                    'contract_code'  :   contract_code,
+                    'order_id'       :   order_id,
                     'executed'       :   'CANCELED',
-                    'totalQuantity'  :   order['ibOrder_m_totalQuantity'],
+                    'totalQuantity'  :   totalQuantity,
                     'FilledQuantitiy':   abs(msg.filled),
                     'avgFillPrice'   :   float(msg.avgFillPrice),
                     'lastFillPrice'  :   float(msg.lastFillPrice),
                     'remaining'      :   abs(msg.remaining),
-         
-            }
-           
+                    }
             #order.setState(broker.Order.State.CANCELED)
-            self.__unregisterOrder(order,raison='CANCELLED')
+            self.__unregisterOrder(order,raison='CANCELLED_BY_API')
             if self.__debug:
                 print ('%s[MyIbBroker_last __orderStatusHandler] CANCELED ORDER - ORDER removed from __activeOrder table :' % (now,))
                 print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
                 print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
                 print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
             return
-          
+        elif msg.status=='PreSubmitted' and order['status']=='PRESUBMITTED':
+            order['status']         =   'SUBMITTED'
+            order['avgFillPrice']   =   msg.avgFillPrice
+            order['FilledQuantitiy']=   abs(msg.filled)
+            order['remaining']      =   abs(msg.remaining)
+            order['lastFillPrice']  =   msg.lastFillPrice
+            order['openOrderYesNo'] =   True
+            """
+            To see if open order from previous session should not be cancelled automatically
+            instead of being recorded and let to be executed
+            """
+            self.__updateActiveOrder(order)
+            if self.__debug:
+                print ('%s[MyIbBroker_last __orderStatusHandler] ORDER in PRESUBMITTED STATE changed to submitted - it was an out of trading hour order submitted at market opening' % (now,))
+                #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
+                #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
+                print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
+            return
         else:
-            if msg.status=='PreSubmitted' and order['status']=='PRESUBMITTED':
-                order['status']         =   'SUBMITTED'
-                order['avgFillPrice']   =   msg.avgFillPrice
-                order['FilledQuantitiy']=   abs(msg.filled)
-                order['remaining']      =   abs(msg.remaining)
-                order['lastFillPrice']  =   msg.lastFillPrice
-                order['openOrderYesNo'] =   True
-                """
-                To see if open order from previous session should not be cancelled automatically
-                instead of being recorded and let to be executed
-                """
-                self.__updateActiveOrder(order)
-                if self.__debug:
-                    print ('%s[MyIbBroker_last __orderStatusHandler] ORDER in PRESUBMITTED STATE changed to submitted - it was an out of trading hour order submitted at market opening' % (now,))
-                    #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
-                    #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
-                    print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
-                return
-        
-            else:
-                if self.__debug:
-                    print ('%s[MyIbBroker_last __orderStatusHandler] duplicate PRESUBMITTED ORDER do nothing' % (now,))
-                    print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
-                    #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
-                    print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
-                return
+            if self.__debug:
+                print ('%s[MyIbBroker_last __orderStatusHandler] duplicate PRESUBMITTED ORDER do nothing' % (now,))
+                #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,order))
+                #print ('%s[MyIbBroker_last __orderStatusHandler] %s' % (now,self.__activeOrders))
+                print ('%s[MyIbBroker_last __orderStatusHandler] END********__orderStatusHandler *****************' % (now,))
+            return
     def getContractPositionLine(self,ibContract):
         now             =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         contract_exist  =   False
         contract_line   =   None
-        contract_code   =   None
+        contract_code   =   self.buildContractRepresentation(ibContract)
         
         if self.__debug:
             print ('%s[MyIbBroker_last getContractPosition] BEGIN*********getContractPosition*******************' %(now,))
-
         for pos in range(self.__activePositions.shape[0]):
             position    =   self.__activePositions.loc[pos]
             if self.__debug:
                 #print(type(position))
                 print(position['contract_code'])
                 #print ('%s[MyIbBroker_last getContractPosition] iter Position from ACTIVE POSITION table: %s ' %(now,position))
-
-
             if (type(position) is pd.Series):
+                """
                 if position['ibContract_m_symbol']      ==  ibContract.m_symbol and\
                     position['ibContract_m_secType']    ==  ibContract.m_secType and\
                     position['ibContract_m_currency']   ==  ibContract.m_currency and\
                     position['ibContract_m_multiplier'] ==  ibContract.m_multiplier and\
                     position['ibContract_m_expiry']     ==  ibContract.m_expiry and\
                     position['ibContract_m_strike']     ==  ibContract.m_strike :
+                """
+                if contract_code == position['contract_code']:
 
                     contract_exist  =   True
                     contract_code   =   position['contract_code']
                     contract_line   =   pos
-
                     if self.__debug:
                         print ('%s[MyIbBroker_last getContractPosition] Contract Received from IB existing in this Positon, PNL information updated:  ' %(now,))
                     return (contract_exist,contract_line,contract_code)
@@ -779,12 +857,9 @@ class MyIbBroker_last():
                     print("%s[MyIbBroker_last getContractPosition] ERROR in ACTIVE POSITION table Position must be a pd.Series"%(now))
                     print ('%s[MyIbBroker_last getContractPosition] END********getContractPosition *****************' % (now,))
                 return (False,0,0)
-    
         if self.__debug:
             print ('%s[MyIbBroker_last getContractPosition] Contract NOT IN ACTIVE POSITION TABLE ' %(now,))
             print ('%s[MyIbBroker_last getContractPosition] END********getContractPosition *****************' % (now,))
-
-
         return (False,0,0)
     def addNonExistingPosition(self,portDict,contract_code,msg,ibContract):
         now=dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -802,7 +877,7 @@ class MyIbBroker_last():
                         'realizedPNL'   :   msg.realizedPNL
             }
         self.__activePositions.to_csv(self.dir_Output+"ActivePositions.csv")
-        self.__positionsHistory.to_csv(self.dir_Output+"PositionsHistory.csv")
+        self.__positionsHistory.to_csv(self.dir_Output+"PositionsHistory.csv",mode='a', header=False)
 
         if self.__debug:
             print ('%s[MyIbBroker_last addNonExistingPosition] Active Positon table empty :added to Active Position:  ' %(now,))
@@ -833,10 +908,11 @@ class MyIbBroker_last():
                 def replace_value_with_definition(key_to_find, definition):
                     for key in self.overalPosition.keys():
                         if key == key_to_find:
-                            print ("**** FIND KEY")
+                            #print ("**** FIND KEY")
                             self.overalPosition[key] = definition
                         else:
-                            print ("****DID NOT FIND KEY")
+                            #print ("****DID NOT FIND KEY")
+                            pass
                         
                 s   = {
                             'contract_code' :   contract_code,
@@ -851,10 +927,10 @@ class MyIbBroker_last():
                 replace_value_with_definition(ibContract, s)
                 
                 self.__activePositions.to_csv(self.dir_Output+"ActivePositions.csv")
-                self.__positionsHistory.to_csv(self.dir_Output+"PositionsHistory.csv")
+                self.__positionsHistory.to_csv(self.dir_Output+"PositionsHistory.csv",mode='a', header=False)
                 if self.__debug:
                     print ('%s[MyIbBroker_last updateExistingPosition] ActivePositions and PositionsHistory outputed as csv  ' %(now,))
-                    print ('%s  ' %(self.__activePositions))
+                    #print ('%s  ' %(self.__activePositions))
                     print ('%s[MyIbBroker_last updateExistingPosition] END********updateExistingPosition *****************' % (now,))   
                 return
         else:
@@ -932,9 +1008,6 @@ class MyIbBroker_last():
         except Exception as e:
             if self.__debug:
                 print ('%s[MyIbBroker_last __portfolioHandler] Error loading to ELASTIC SEARCH:  ' %(now,e))
-                #print (e)
-                #raise("ERROR")
-
         
         #Checking if the Contract of the position is already in the Active Position table
         #1 step checking if the contract exist in the active position table
@@ -946,7 +1019,7 @@ class MyIbBroker_last():
 
             self.addNonExistingPosition(portDict,contract_code,msg,ibContract)
             #self.__activeOrders.to_csv(self.dir_Output+"ActiveOrders.csv")
-            #self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv")
+            #self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv",mode='a', header=False)
             if self.__debug:
                 #print ('%s[MyIbBroker_last __portfolioHandler] output Order csv'%(now,))
                 print ('%s[MyIbBroker_last __portfolioHandler] END*********__portfolioHandler*******************'%(now,))
@@ -965,8 +1038,6 @@ class MyIbBroker_last():
                     print ('%s[MyIbBroker_last __portfolioHandler] Updating ACTIVE POSITION TABLE'%(now,))
 
                 self.updateExistingPosition(portDict,contract_line,contract_code,ibContract,msg)
-                #self.__activeOrders.to_csv(self.dir_Output+"ActiveOrders.csv")
-                #self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv")
                 if self.__debug:
                     #print ('%s[MyIbBroker_last __portfolioHandler] output Order csv'%(now,))
                     print ('%s[MyIbBroker_last __portfolioHandler] END*********__portfolioHandler*******************'%(now,))
@@ -977,8 +1048,6 @@ class MyIbBroker_last():
                         print ('%s[MyIbBroker_last __portfolioHandler] Adding new position in ACTIVE POSITION TABLE '%(now,))
 
                 self.addNonExistingPosition(portDict,contract_code,msg,ibContract)
-                #self.__activeOrders.to_csv(self.dir_Output+"ActiveOrders.csv")
-                #self.__ordersHistory.to_csv(self.dir_Output+"OrdersHistory.csv")
                 if self.__debug:
                     #print ('%s[MyIbBroker_last __portfolioHandler] output Order csv'%(now,))
                     print ('%s[MyIbBroker_last __portfolioHandler] END*********__portfolioHandler*******************'%(now,))
@@ -1106,7 +1175,7 @@ class MyIbBroker_last():
                     return
             except Exception as e:
                 if self.__debug:
-                    print ('%s[MyIbBroker_last __openOrderHandler] Problem Order: %s'%(now,e))
+                    print ('%s[MyIbBroker_last __openOrderHandler] Problem registering Presubmitted Order: %s'%(now,e))
                     print ('%s[MyIbBroker_last __openOrderHandler] END*********__openOrderHandler*******************'%(now,))
                     return
     def __startTradeMonitor(self):
@@ -1158,7 +1227,7 @@ class MyIbBroker_last():
                         
                         return order
                     except Exception as e:
-                        #print(e)
+                        print(e)
                         raise("[MyIbBroker_last getOrderNumber] END File control_files/run_number must have an integer number in it")
         except  :
             #print(Exception)
@@ -1226,6 +1295,9 @@ class MyIbBroker_last():
         return self.__activeOrders
     def getFilledOrders(self):
         return self.__ordersFilled
+    def getCancelledOrders(self):
+        return self.__ordersCancelled
+
     def getOrdersHistory(self, instrument=None):
         return self.__ordersHistory
 
@@ -1243,14 +1315,11 @@ class MyIbBroker_last():
         return newContract
     def makeOptContract(self,
             IbContract  =   None,
+            m_symbol    =   None,
             m_right     =   None, 
-            m_expiry    =   None, 
             m_strike    =   None,
-
-            m_symbol    =   None, 
-            m_secType = 'OPT',
-            m_exchange = 'SMART',
-            m_currency = 'USD'):
+            m_expiry    =   None, 
+        ):
         '''
         makeOptContract('BAC', '20160304', 'C', 15)
         sym: Ticker instrument
@@ -1261,20 +1330,26 @@ class MyIbBroker_last():
         from ib.ext.Contract import Contract
 
         if isinstance(IbContract,Contract):
-            newOptContract = IbContract
+            newOptContract          = Contract()
+            newOptContract.m_symbol = IbContract.m_symbol
             
         else:
-            newOptContract = Contract()
+            newOptContract          = Contract()
             newOptContract.m_symbol = m_symbol
         
+        newOptContract.m_right      = m_right
+        newOptContract.m_strike     = float(m_strike)
+        newOptContract.m_expiry     = m_expiry
         
+        m_secType  = 'OPT'
+        m_exchange = 'SMART'
+        m_currency = 'USD'
         
         newOptContract.m_secType = m_secType
-        newOptContract.m_right = m_right
-        newOptContract.m_expiry = m_expiry
-        newOptContract.m_strike = float(m_strike)
         newOptContract.m_exchange = m_exchange
         newOptContract.m_currency = m_currency
+        
+        
         #newOptContract.m_localSymbol = ''
         #newOptContract.m_primaryExch = ''
         return newOptContract
@@ -1364,32 +1439,35 @@ class MyIbBroker_last():
                                 'avgFillPrice'   :   0,
                                 'lastFillPrice'  :   0,
                         }
-    
+                    if self.__debug:
+                        print ('%s[MyIbBroker_last submitOrder] Order %s submitted and registered in ACTIVE ORDER table:'%(now,order_id))
+                        #print ('%s[MyIbBroker_last submitOrder] Order:\n %s' % (now,order))
+                        #print ('%s[MyIbBroker_last submitOrder] ACTIVE ORDER TABLE:\n %s' % (now,self.__activeOrders))
+                        print ('%s[MyIbBroker_last submitOrder] END********submitOrder *****************' % (now,))
+                    return order_id
+  
                 except Exception as c:
                     if self.__debug:
                         print ('%s[MyIbBroker_last submitOrder] ERROR place Order - active order table out of synch:\n ' % (now,c))
                         print ('%s[MyIbBroker_last submitOrder] END********submitOrder *****************' % (now,))
-                        return
+                        return False
             except Exception as b:
                 if self.__debug:
                     print ('%s[MyIbBroker_last submitOrder] ERROR __registerOrder, active ordewr table out of synch\n %s' % (now,b))
                     print ('%s[MyIbBroker_last submitOrder] END********submitOrder *****************' % (now,))
-                    return
+                    return False
         except Exception as a:
             if self.__debug:
                 print ('%s[MyIbBroker_last submitOrder] ERROR IB __createOrder:\n %s' % (now,a))
                 print ('%s[MyIbBroker_last submitOrder] END********submitOrder *****************' % (now,))
-                return
+                return False
         
             
-        if self.__debug:
-                print ('%s[MyIbBroker_last submitOrder] Order submitted and registered in ACTIVE ORDER table:'%(now,))
-                print ('%s[MyIbBroker_last submitOrder] Order:\n %s' % (now,order))
-                print ('%s[MyIbBroker_last submitOrder] ACTIVE ORDER TABLE:\n %s' % (now,self.__activeOrders))
-                print ('%s[MyIbBroker_last submitOrder] END********submitOrder *****************' % (now,))
                 
     def submitMarketOrder(self, m_action, ibContract, m_totalQuantity, onClose=True):
-        assert (m_action in ['BUY','SELL']),'[createMarketOrder] m_action not either BUY or SELL'
+        if (m_action not in ['BUY','SELL']):
+            print('ERROR [createMarketOrder] m_action not either BUY or SELL')
+            return
         if onClose==False :
             m_tif='GTC'
         else:
@@ -1407,9 +1485,9 @@ class MyIbBroker_last():
         ibOrder.m_transmit      =   1 #  bool m_transmit	Specifies whether the order will be transmitted by TWS. If set to false, the order will be created at TWS but will not be sent.
         ibOrder.m_allOrNone     =   0 #  boolean m_allOrNone	0 = no, 1 = yes
 
-        self.submitOrder(ibContract, ibOrder)
+        return self.submitOrder(ibContract, ibOrder) # This will either return the order ID or a False in case order not submitted 
 
-        return 
+        
     def submitLimitOrder(self, m_action, ibContract, m_lmtPrice, m_totalQuantity,onClose=True):
         assert (m_action in ['BUY','SELL']),'[createMarketOrder] m_action not either BUY or SELL'
         if onClose==False :
@@ -1479,10 +1557,10 @@ class MyIbBroker_last():
         self.submitOrder(ibContract, ibOrder)
     def submittrailingLimitStop(self,m_action,ibContract,limitPrice,trailingAmount,trailStopPrice,quantity,onClose=True):
         
-        if onClose==False :
-            m_tif='GTC'
+        if onClose  ==  False :
+            m_tif   = 'GTC'
         else:
-            m_tif='DAY'
+            m_tif   = 'DAY'
 
         
         m_totalQuantity  =  quantity
@@ -1511,10 +1589,10 @@ class MyIbBroker_last():
         assert(order['ibOrder_m_orderId'] not in self.__ordersFilled.index),'[cancelOrder] Can not cancel order that has already been filled'
 
         self.__ib.cancelOrder(order['ibOrder_m_orderId'])
-        order['status']='CANCELATION REQUESTED'
-        order['datetime']= dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
-        order['openOrderYesNo']=False
-        self.__updateActiveOrder(order)
+        order['status']         =   'CANCELLED_BY_USER'
+        order['datetime']       =   dat.datetime.now().strftime('%Y-%m-%d %H:%M:%S') 
+        order['openOrderYesNo'] =   False
+        self.__unregisterOrder(order,"CANCELLED_BY_USER")
 
 
         #DO NOT DO THE BELOW:
@@ -1530,8 +1608,8 @@ class MyIbBroker_last():
         '''
     # END broker.Broker interface
     def getOptionExpiry(self,month):
-        dic=['20160617','20160715']
-        return dic[0]
+        dic=['20160617','20160715','20160819','20160916','20161021','20161118','20161216']
+        return dic[month-6]
         
         
         

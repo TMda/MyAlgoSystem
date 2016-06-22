@@ -1113,7 +1113,6 @@ class DataHandler(object):
         """
         raise NotImplementedError("Should implement update_bars()")
 
-
 class HistoricCSVDataHandler(DataHandler):
     """
     HistoricCSVDataHandler is designed to read CSV files for
@@ -1343,8 +1342,8 @@ class LiveIBDataHandler():
             Note: That instrument numbers and frequency affect pacing rules. Keep it to 3 instruments with a 1 minute bar to avoid pacing. Daily hits could include as many as 60 instruments as the limit is 60 calls within a ten minute period. We make one request per instrument for the warmup bars and then one per instrument every frequency seconds. See here for more info on pacing - https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
 
         '''
-        if self.__frequency not in [60,120,300,900,1800,3600,86400]:
-            raise Exception("Please use a frequency of 1,2,5,15,30,60 minutes or 1 day")
+        #if self.__frequency not in [60,120,300,900,1800,3600,86400]:
+        #    raise Exception("Please use a frequency of 1,2,5,15,30,60 minutes or 1 day")
 
         #builds up a list of quotes
         self.__synchronised = False #have we synced to IB's bar pace yet?
@@ -1392,7 +1391,9 @@ class LiveIBDataHandler():
                                  clientId   =   random.randint(1,10000)
                                  )
         self.__ib.register(self._get_new_bar, message.realtimeBar)
-        #self.__ib.register(self.__errorHandler, message.error)
+        self.__ib.register(self.__error_handler, message.error)
+        self.__ib.register(self.__historicalBarsHandler, message.historicalData)
+
         #self.__ib.register(self.__disconnectHandler, 'ConnectionClosed')
         #self.__ib.registerAll(self.__debugHandler)
         self.__ib.connect()
@@ -1407,7 +1408,121 @@ class LiveIBDataHandler():
                 
         else:
             print('LiveIBDataHandler Connection to IB Error')
+    def __error_handler(self,msg):
+        """Handles the capturing of error messages"""
+        message     =   None
+        now         =   datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        erroCode    =   int(msg.errorCode)
+        if erroCode in [2104,2106]:
+            return
+        if self.__debug:
+            print ('%s[LiveIBDataHandler __error_handler] BEGIN********__error_handler *****************' % (now,))
 
+        if self.__debug: 
+            print("%s[LiveIBDataHandler __error_handler] Server Error: %s" % (now,msg))
+
+    def requestHistoricalBars(self,in_lookbackDuration=3700,endDate = None):
+
+        #push old bars into queue if any remaining - this might cause problems - commenting out to determine if this is the cause
+        '''
+        if len(self.__currentBar) > 0:
+            bars = bar.Bars(self.__currentBar)
+            self.__queue.put(bars)
+        '''
+        self.__currentBar = {}
+        if self.__debug:
+            print('** [LiveFeed __requestHistoricalBars] ******************************')
+
+
+        #what are our duration and frequency settings
+        if self.__frequency < 3600: #bar.Frequency.DAY:
+            barSize = "%d min" % (self.__frequency / 60)#bar.Frequency.MINUTE)
+            #make it mins for anything greater than a minute
+            if self.__frequency > 60:#bar.Frequency.MINUTE:
+                barSize += "s"
+        else:
+            barSize = "1 day"
+        
+        barSize = "1 day"
+        #duration
+
+        if in_lookbackDuration > 3600:#bar.Frequency.DAY:
+            lookbackDuration = "3 M"
+        else:
+            lookbackDuration = "%d S" % (in_lookbackDuration)                
+        lookbackDuration = "30 d"
+        for tickId in range(len(self.__contracts)):
+            #seems no matter what we do we might end up with a couple of bars of data whether we set an end date/time or not
+            #need to handle this by ignoring first bars
+            contract_code   =  self.buildContractRepresentation(self.__contracts[tickId])
+            if endDate == None:
+                endDate = ''
+            else:
+                #%z
+                #endDate = time.strftime("%Y%m%d %H:%M:%S GMT", time.gmtime(self.__lastBarStamp + (self.__frequency * 2)-1))   
+                #endDate = time.strftime("%Y%m%d %H:%M:%S GMT", time.gmtime(self.__lastBarStamp + self.__frequency))
+                pass
+            
+            
+            #prevent race condition here with threading
+            #lastBarTS = self.__lastBarStamp 
+
+            self.__ib.reqHistoricalData(tickerId=tickId,
+                                          contract=self.__contracts[tickId],
+                                          endDateTime='20160610 16:00:00',
+                                          durationStr=lookbackDuration,       #how far back to go
+                                          barSizeSetting=barSize,      #bar size
+                                          whatToShow='TRADES',
+                                          useRTH=1,
+                                          formatDate=2)
+        time.sleep(5)
+        if self.__debug:
+            print('%s [LiveFeed __requestBars] %s' %(datetime.datetime.now().strftime('%Y%m%d %H:%M:%S'),contract_code))
+            #print('** [LiveFeed __requestBars] ')
+            
+        if self.__debug:
+            print('[LiveFeed __requestBars]==EXIT=======EXIT============================================')
+            #print (msg)
+    def __historicalBarsHandler(self,msg):
+        now             =   datetime.datetime.now()
+        #barMsg          =   msg
+        #frequency       =   5
+        tz              =   pytz.timezone('America/New_York')
+        contract_code   =  self.buildContractRepresentation(self.__contracts[msg.reqId])
+        #barDict = {}
+        filename=contract_code.replace(":","-")
+        f = open(filename+"_Daily.csv","a")
+        if self.__debug:
+            print('%s [LiveFeed __historicalBarsHandler] ******************************' % (datetime.datetime.now().strftime('%Y%m%d %H:%M:%S')))
+            print ('%s[LiveFeed __historicalBarsHandler] Message received from Server: %s' % (datetime.datetime.now().strftime('%Y%m%d %H:%M:%S'),msg))
+            print('%s [LiveFeed __historicalBarsHandler] instrument: %s ' % (datetime.datetime.now().strftime('%Y%m%d %H:%M:%S'),contract_code))
+
+        date=str(msg.date)
+        if date.isdigit() != True:
+            print ("Finished")
+            return
+
+        startDateTime   =   localize(datetime.datetime.fromtimestamp(int(msg.date),tz),tz)
+        barEvent={
+                'datetime'  :   startDateTime,
+                'contract'  :   self.__contracts[msg.reqId],          
+                'Open'      :   msg.open,
+                'Close'     :   msg.close,
+                'High'      :   msg.high,
+                'Low'       :   msg.low,
+#                'wap'       :   msg.wap,
+                'Volume'    :   msg.volume
+                }
+        f.write("%s,%s,%s,%s,%s,%s\n"%(startDateTime.strftime('%Y%m%d %H:%M:%S'),msg.open,msg.high,msg.low,msg.close,msg.volume))
+        f.close()
+        print(barEvent)
+        self.__queue.put(MarketEvent(barEvent,self.__contracts[msg.reqId]))
+
+        if self.__debug:
+            print('** [LiveFeed  __historicalBarsHandler] ===EXIT==============EXIT')
+            
+            
+            
     def __requestBars(self):
 
         self.__currentBar = {}
@@ -1438,9 +1553,9 @@ class LiveIBDataHandler():
         frequency       =   5
         tz              =   pytz.timezone('America/New_York')
         startDateTime   =   localize(datetime.datetime.fromtimestamp(int(msg.time),tz),tz)
-
+        contract_code   =  self.buildContractRepresentation(self.__contracts[msg.reqId])
         if self.__debug:
-            print ('%s[LiveFeed __build_bar] time: %s, symb: %s, Open: %d ,High: %d, Low: %d, Close: %d, Volume: %d, frequency: %s' %(now,startDateTime,self.__contracts[msg.reqId].m_symbol, float(barMsg.open), float(barMsg.high), float(barMsg.low), float(barMsg.close), int(barMsg.volume), frequency))
+            print ('%s[LiveFeed __build_bar] time: %s, symb: %s, Open: %d ,High: %d, Low: %d, Close: %d, Volume: %d, frequency: %s' %(now,startDateTime,contract_code, float(barMsg.open), float(barMsg.high), float(barMsg.low), float(barMsg.close), int(barMsg.volume), frequency))
     
         #bar= bar.BasicBar(startDateTime, float(barMsg.open), float(barMsg.high), float(barMsg.low), float(barMsg.close), int(barMsg.volume), None, frequency)
 
@@ -1459,7 +1574,12 @@ class LiveIBDataHandler():
         
         self.__queue.put(MarketEvent(barEvent,self.__contracts[msg.reqId]))
         if self.__debug:
-            print ("@@@@@ BAR PUT ON THE QUEUE")
+            print ("@@@@@ BAR PUT ON THE QUEUE: %s" %(contract_code))
+
+    def buildContractRepresentation(self,ibContract):
+    
+        return ("%s:%s:%s:%s:%s" %(ibContract.m_symbol,ibContract.m_secType,ibContract.m_right,ibContract.m_strike,ibContract.m_expiry )).strip()
+ 
     def stop(self):
         print("@@@@@@@@@@@@@@@@@@@@")
         self.__stop = True
@@ -1470,29 +1590,32 @@ class LiveIBDataHandler():
         print("@@   @@@ @@@@@@@@@@@@@@")
         print("@@@@@@@@@@@@@@@@@@@@")
         
-            
-"""
-def makeStkContrcat(m_symbol,m_secType = 'STK',m_exchange = 'SMART',m_currency = 'USD'):
-    from ib.ext.Contract import Contract
-    newContract = Contract()
-    newContract.m_symbol = m_symbol
-    newContract.m_secType = m_secType
-    newContract.m_exchange = m_exchange
-    newContract.m_currency = m_currency
-    return newContract
+from lib.Contract import makeStkContrcat,makeForexContract,makeOptContract,buildContractRepresentation
+           
+eur         =   makeForexContract(m_symbol='EUR',m_currency = 'GBP')
+aapl        =   makeStkContrcat('AAPL')
+bac         =   makeStkContrcat('BAC')
+bacOption1   =   makeOptContract(m_symbol='BAC' , m_right='C', m_expiry='20160617',m_strike=12) 
+bacOption2   =   makeOptContract(m_symbol='BAC' , m_right='C', m_expiry='20160617',m_strike=13) 
+bacOption3   =   makeOptContract(m_symbol='BAC' , m_right='C', m_expiry='20160617',m_strike=14) 
+bacOption4   =   makeOptContract(m_symbol='BAC' , m_right='C', m_expiry='20160617',m_strike=15) 
+bacOption5   =   makeOptContract(m_symbol='BAC' , m_right='C', m_expiry='20160617',m_strike=16) 
 
-def makeForexContract(m_symbol,m_secType = 'CASH',m_exchange = 'IDEALPRO',m_currency = 'USD'):
-    from ib.ext.Contract import Contract
-    newContract = Contract()
-    newContract.m_symbol = m_symbol
-    newContract.m_secType = m_secType
-    newContract.m_exchange = m_exchange
-    newContract.m_currency = m_currency
-    return newContract
+bacOption6   =   makeOptContract(m_symbol='BAC' , m_right='P', m_expiry='20160617',m_strike=12) 
+bacOption7   =   makeOptContract(m_symbol='BAC' , m_right='P', m_expiry='20160617',m_strike=13) 
+bacOption8   =   makeOptContract(m_symbol='BAC' , m_right='P', m_expiry='20160617',m_strike=14) 
+bacOption9   =   makeOptContract(m_symbol='BAC' , m_right='P', m_expiry='20160617',m_strike=15) 
+bacOption10   =   makeOptContract(m_symbol='BAC' , m_right='P', m_expiry='20160617',m_strike=16) 
 
-bac=makeStkContrcat('BAC')
-aapl=makeStkContrcat('AAPL')
+fut         =   makeForexContract('ES','201612')
+symbol_list =   [bac,bacOption1,bacOption2,bacOption3,bacOption4,bacOption5,bacOption6,bacOption7,bacOption8,bacOption9,bacOption10]
 
-eur=makeForexContract('AUD') 
-Live        =   LiveIBDataHandler([bac,aapl],debug=True)
-"""
+
+feed=LiveIBDataHandler(
+                contract    =   symbol_list,
+                frequency   =   3700,
+                eventQueue  =   None,
+                host="localhost",port=7496,       
+                warmupBars = 0, debug=True)
+                
+feed.requestHistoricalBars()

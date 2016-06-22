@@ -32,7 +32,7 @@ class LiveExecutionContainer(object):
         strategy,       #Strategy class
         contract_list,  #list of contract 
         dir_Output      =   None,#path to the output directory
-        heartbeat       =   1 ,    #heartbeat
+        heartbeat       =   0 ,    #heartbeat
         debug_data_feed =   False,
         debug_broker    =   False,
     ):

@@ -17,16 +17,16 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from strategy import Strategy
-from event import SignalEvent
+
 from LiveExecutionContainer import LiveExecutionContainer
 import ib.ext
 from ib.ext import Contract
 #from MyAlgoSystem.bar import LiveFeed
 #from MyAlgoSystem.IbBroker import MyIbBroker
 #from MyAlgoSystem.strategy import MyLiveStrategy
-from barfeed import LiveFeed
+
 from IbBroker import MyIbBroker
-from strategy import MyLiveStrategy
+
 from numpy import append 
 import time
 from lib.Contract import makeStkContrcat,makeForexContract,makeOptContract
@@ -83,13 +83,13 @@ class MyStrategy(Strategy):
         Calculate the SignalEvents based on market data.
         """
         print('bar Got into the Strategy')
-        print("bar: %s\n" %(bar))
+        #print("bar: %s\n" %(bar))
         contract_code=self.IbBroker.buildContractRepresentation(bar['contract'])
         print(contract_code+"\n\n")
         if bar['contract'].m_symbol=='AAPL':
             self.barAAPL.append(bar)
             self.y=np.append(self.x,self.barAAPL[-1]['Close'])
-            print("exit because aapl info")
+            #print("exit because aapl info")
             return
         elif bar['contract'].m_symbol=='BAC':
             self.barBAC.append(bar)
