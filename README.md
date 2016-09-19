@@ -9,9 +9,9 @@ the my strategy can also works with historical data for back testing
 
 Prerequesite
 Requires:
-- ibPy - https://github.com/blampe/IbPy included in the OneDrive Directory
+- ibPy - https://github.com/blampe/IbPy included in the OneDrive Directory or download the zip file, unzip it, enter into the IbPy-Master and run : python setup.py install from the anaconda command prompt
 - trader work station or IB Gateway - https://www.interactivebrokers.com/en/?f=%2Fen%2Fsoftware%2Fibapi.php&ns=T
-- PyAlgo 2.7 included in the onedrive python bin directory
+- PyAlgo 2.7 included in the onedrive python bin directory or pip install pyalgotrade on Anaconda commmand prompt
 - Elastic Search for storing and visualizing performances - Not mandatory
 File Structure
 
