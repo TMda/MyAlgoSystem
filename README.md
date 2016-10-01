@@ -16,13 +16,21 @@ Requires:
 File Structure
 
 MyAlgoSystem
+
    |- lib
+   
         |- ElasticSearch 
+        
    |- control_files
+   
         |- runfile : File with just START, STOP that controls liveExec
+        
         |- run_number : File with a number to uniquely identify strategy run in ElasticSearch
+        
    |- output contains a sqlite database with all the strategy orders & position current and historical value
+   
              contains csv file with strategy current orders & position and historical value for running strategy   
+             
     
 The IBroker as a queue where commands are executed
 The Datafeed as a queue where price informations are pushed to the strategy
